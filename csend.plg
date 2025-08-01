@@ -1,0 +1,25 @@
+--------------------ç\ê¨: csend - Win32 Release--------------------
+Begining build with project "D:\Work\csend\csend.dsp", at root.
+Active configuration is Win32 (x86) Application (based on Win32 (x86) Application)
+
+Project's tools are:
+			"32-bit C/C++ Compiler for 80x86" with flags "/nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /Fp".\Release/csend.pch" /Yu"stdafx.h" /Fo".\Release/" /Fd".\Release/" /FD /c "
+			"OLE Type Library Maker" with flags "/nologo /D "NDEBUG" /mktyplib203 /win32 "
+			"Win32 Resource Compiler" with flags "/l 0x411 /fo".\Release/csend.res" /d "NDEBUG" "
+			"Browser Database Maker" with flags "/nologo /o".\Release/csend.bsc" "
+			"COFF Linker for 80x86" with flags "/nologo /subsystem:windows /incremental:no /pdb:".\Release/csend.pdb" /machine:I386 /out:".\Release/csend.exe" "
+			"∂Ω¿— ÀﬁŸƒﬁ" with flags ""
+			"<Component 0xa>" with flags ""
+
+Creating temp file "C:\TEMP\RSP37.tmp" with contents </nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /Fp".\Release/csend.pch" /Yu"stdafx.h" /Fo".\Release/" /Fd".\Release/" /FD /c 
+"D:\Work\csend\csendDlg.cpp"
+>
+Creating command line "cl.exe @C:\TEMP\RSP37.tmp" 
+Creating command line "link.exe /nologo /subsystem:windows /incremental:no /pdb:".\Release/csend.pdb" /machine:I386 /out:".\Release/csend.exe"  .\Release\csend.obj .\Release\csendDlg.obj .\Release\InputBox.obj .\Release\StdAfx.obj .\Release\csend.res" 
+∫› ﬂ≤ŸíÜ...
+csendDlg.cpp
+ÿ›∏íÜ...
+
+
+
+csend.exe - ¥◊∞ 0ÅAåxçê 0
