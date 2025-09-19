@@ -29,6 +29,9 @@ protected:
 	void DeleteString(void);
 	void SendClipBoard( CString& text );
 	HICON m_hIcon;
+	int m_fontSize = 0;
+	CString m_fontName;
+	CFont m_listFont;
 
 	// 生成されたメッセージ マップ関数
 	//{{AFX_MSG(CCsendDlg)

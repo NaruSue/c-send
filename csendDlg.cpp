@@ -155,6 +155,30 @@ BOOL CCsendDlg::OnInitDialog()
 	csSaveFileName.LoadString( IDS_SAVEFILE );	// リソースからファイル名を取得します
 	if( savedata.Open( csSaveFileName,
 			CFile::modeRead | CFile::typeText ) ){	// 読み込み、テキストモードで開きます
+
+
+		if (savedata.ReadString(l_tmp)) {
+
+
+			// "15,MS UI Gothic" のような形式を分解
+			int commaPos = l_tmp.Find(_T(","));
+			if (commaPos > 0) {
+				m_fontSize = _ttoi(l_tmp.Left(commaPos));
+				m_fontName = l_tmp.Mid(commaPos + 1);
+			}
+			
+
+			if (m_fontSize > 0 && !m_fontName.IsEmpty()) {
+				LOGFONT lf{};
+				lf.lfHeight = -MulDiv(m_fontSize, GetDeviceCaps(::GetDC(NULL), LOGPIXELSY), 72);
+				_tcsncpy_s(lf.lfFaceName, m_fontName, LF_FACESIZE - 1);
+
+				m_listFont.DeleteObject();              // 既存フォントがあれば削除
+				m_listFont.CreateFontIndirect(&lf);     // メンバ変数に作成
+				m_CList.SetFont(&m_listFont);           // 有効なフォントを関連付け
+			}
+		}
+
 		if( savedata.ReadString( l_tmp ) ){	// 一行読み込み
 			// 一行目はサイズと位置が入っています
 			sscanf( l_tmp, "%04X%04X%04X%04X", &rect.top, &rect.left,
@@ -667,7 +691,22 @@ void CCsendDlg::SaveData()
 	csSaveFileName.LoadString( IDS_SAVEFILE );	// 保存用ファイルをリソースから取得します
 	if( savedata.Open( csSaveFileName,	// テキストモード、ライト属性で、無い場合は新規作成します
 		CFile::modeCreate | CFile::modeWrite | CFile::typeText ) ){
-		char buff[17];	// 1行目用
+
+		int fontSize = 16;              // デフォルト値
+		CString fontName = _T("MS UI Gothic");
+
+		if (m_fontSize != 0) {
+			fontSize = m_fontSize;
+			fontName = m_fontName;
+		}
+
+		// --- 1行目: フォント情報 ---
+		CString fontLine;
+		fontLine.Format(_T("%d,%s\n"), fontSize, (LPCTSTR)fontName);
+		savedata.WriteString(fontLine);
+
+
+		char buff[17];	// 2行目用
 		if( !IsIconic() && !IsZoomed() ){	// ウインドウがアイコン化や最大化されていなければ
 			GetWindowRect( &rect );	// ウインドウサイズを取得します
 		}
