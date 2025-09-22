@@ -305,6 +305,11 @@ void CCsendDlg::OnSelchangeClist()
 		text.LoadString( IDS_TITLE );
 	}
 	SetWindowText( text );	// 現在のtextの内容をキャプションに表示します
+
+	// Ctrlキーが押されていたら最小化
+	if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
+		ShowWindow(SW_MINIMIZE);
+	}
 // <--Make
 }
 
@@ -455,8 +460,6 @@ LRESULT CCsendDlg::OnNotifyIconIvents( WPARAM wParam, LPARAM lParam ){
 		}
 
 		CString strMenu;	// メニューに表示する文字列用
-		strMenu.LoadString(IDS_HELP);	// メニューに「ヘルプ」を表示します
-		cMenu.AppendMenu( MF_STRING, ID_HELP, strMenu); 
 		strMenu.LoadString(IDS_ABOUTBOX);	// メニューに「バージョン情報」を表示します
 		cMenu.AppendMenu( MF_STRING, ID_ABOUT, strMenu); 
 		strMenu.LoadString(IDS_EXIT);	// メニューに「終了」を表示します
