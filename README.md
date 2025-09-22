@@ -6,4 +6,5 @@
 
 下記でバイナリがダウンロードできます
 
+[https://github.com/NaruSue/c-send/releases](https://github.com/NaruSue/c-send/releases)
 [Vector](https://www.vector.co.jp/soft/win95/util/se061481.html?srsltid=AfmBOooY1phVnlrRnupG-bHEt6iyhr1YMWpCVOBYakbIfdn4s3pHxnWY#google_vignette)
