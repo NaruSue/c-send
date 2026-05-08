@@ -19,7 +19,6 @@ BEGIN_MESSAGE_MAP(CCsendApp, CWinApp)
 		// メモ - ClassWizard はこの位置にマッピング用のマクロを追加または削除します。
 		//        この位置に生成されるコードを編集しないでください。
 	//}}AFX_MSG
-	ON_COMMAND(ID_HELP, CWinApp::OnHelp)
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////

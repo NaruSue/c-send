@@ -7,6 +7,7 @@
 
 // Make -->
 #include "InputBox.h"	// 文字列登録用ダイアログのヘッダファイル
+#include "categoryDlg.h"
 // <--Make
 
 #ifdef _DEBUG
@@ -82,6 +83,7 @@ void CCsendDlg::DoDataExchange(CDataExchange* pDX)
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(CCsendDlg)
 	DDX_Control(pDX, IDC_CLIST, m_CList);
+	DDX_Control(pDX, IDC_COMBO_CATEGORY, m_CCombo);
 	//}}AFX_DATA_MAP
 }
 
@@ -102,7 +104,7 @@ BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
 	ON_COMMAND(ID_DELETESTRING, OnDeletestring)
 	ON_COMMAND(ID_ABOUT, OnAbout)
 	ON_COMMAND(ID_EXIT, OnExit)
-	ON_COMMAND(ID_HELP, OnHelp)
+ ON_CBN_SELCHANGE(IDC_COMBO_CATEGORY, &CCsendDlg::OnCbnSelchangeComboCategory)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -132,6 +134,11 @@ BOOL CCsendDlg::OnInitDialog()
 
 	pSysMenu->AppendMenu(MF_SEPARATOR);	// セパレータ
 
+	strMenu.LoadString(IDS_CATEGORY);	// カテゴリー
+		pSysMenu->AppendMenu(MF_STRING, IDS_CATEGORY, strMenu);
+
+	pSysMenu->AppendMenu(MF_SEPARATOR);	// セパレータ
+
 	strMenu.LoadString(IDS_ABOUTBOX);		// AboutBox
 		pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strMenu);
 // <--Make
@@ -145,55 +152,35 @@ BOOL CCsendDlg::OnInitDialog()
 // Make-->
 	
 	// ファイルからウインドウのサイズと位置、リストを取得します
-	CString l_tmp;	// 行を読み込むための作業領域
 
-	CString adds;	// リストの最後の（追加）メッセージ用です。この文字はリソースで変更できます
-	adds.LoadString( IDS_LISTADD );	// 「(追加)」
+	TCHAR szPath[MAX_PATH];
+	GetModuleFileName(NULL, szPath, MAX_PATH); // C:\MyApp\MyApp.exe
+	PathRemoveFileSpec(szPath);                 // C:\MyApp
+	m_appPath = szPath;
+	m_iniPath.Format(_T("%s\\setting.ini"), szPath);
 
-	CStdioFile savedata;	// セーブされているデータファイルを扱います
-	CString csSaveFileName;	// セーブされているファイル名を指定します、リソースで変更できます
-	csSaveFileName.LoadString( IDS_SAVEFILE );	// リソースからファイル名を取得します
-	if( savedata.Open( csSaveFileName,
-			CFile::modeRead | CFile::typeText ) ){	// 読み込み、テキストモードで開きます
+	TCHAR buffer[256];
+	GetPrivateProfileString(_T("font"), _T("name"), _T("MS UI Gothic"), buffer, 256, m_iniPath);
+	m_fontName = buffer;
+	m_fontSize = GetPrivateProfileInt(_T("font"), _T("size"), 16, m_iniPath);
+	GetPrivateProfileString(_T("Window"), _T("window"), _T("0000000001000100"), buffer, 256, m_iniPath);
+	sscanf(buffer, "%04X%04X%04X%04X", &rect.top, &rect.left,
+		&rect.bottom, &rect.right);
+	MoveWindow(&rect);	// 取得した情報に従ってサイズと位置を変更します
 
+	if (m_fontSize > 0 && !m_fontName.IsEmpty()) {
+		LOGFONT lf{};
+		lf.lfHeight = -MulDiv(m_fontSize, GetDeviceCaps(::GetDC(NULL), LOGPIXELSY), 72);
+		_tcsncpy_s(lf.lfFaceName, m_fontName, LF_FACESIZE - 1);
 
-		if (savedata.ReadString(l_tmp)) {
-
-
-			// "15,MS UI Gothic" のような形式を分解
-			int commaPos = l_tmp.Find(_T(","));
-			if (commaPos > 0) {
-				m_fontSize = _ttoi(l_tmp.Left(commaPos));
-				m_fontName = l_tmp.Mid(commaPos + 1);
-			}
-			
-
-			if (m_fontSize > 0 && !m_fontName.IsEmpty()) {
-				LOGFONT lf{};
-				lf.lfHeight = -MulDiv(m_fontSize, GetDeviceCaps(::GetDC(NULL), LOGPIXELSY), 72);
-				_tcsncpy_s(lf.lfFaceName, m_fontName, LF_FACESIZE - 1);
-
-				m_listFont.DeleteObject();              // 既存フォントがあれば削除
-				m_listFont.CreateFontIndirect(&lf);     // メンバ変数に作成
-				m_CList.SetFont(&m_listFont);           // 有効なフォントを関連付け
-			}
-		}
-
-		if( savedata.ReadString( l_tmp ) ){	// 一行読み込み
-			// 一行目はサイズと位置が入っています
-			sscanf( l_tmp, "%04X%04X%04X%04X", &rect.top, &rect.left,
-								&rect.bottom, &rect.right );
-			MoveWindow( &rect );	// 取得した情報に従ってサイズと位置を変更します
-		}			
-		while( savedata.ReadString( l_tmp ) ){	// 行が有る間読み込みます
-			if( l_tmp != adds ){		// （追加）という文字で無ければ
-				m_CList.AddString(l_tmp);	// リストに追加します
-			}
-		}
-		savedata.Close();		// ファイルを閉じます
+		m_listFont.DeleteObject();              // 既存フォントがあれば削除
+		m_listFont.CreateFontIndirect(&lf);     // メンバ変数に作成
+		m_CList.SetFont(&m_listFont);           // 有効なフォントを関連付け
 	}
-	
-	m_CList.InsertString(-1,adds);	// リストの最後に（追加）を加えます
+
+	CategoryUpdate();
+
+	UpdateList();
 
 	// ツールが使いやすいように常に手前に表示します
 	SetWindowPos( &wndTopMost, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE );
@@ -229,12 +216,11 @@ void CCsendDlg::OnSysCommand(UINT nID, LPARAM lParam)
 		}
 		ChangeMessage();			// 文字列追加／変更関数を呼びます
 	}
-	else if( nID == ID_HELP ){		// 「ヘルプ」
-		AfxGetApp()->WinHelp(0,HELP_CONTENTS);	// ヘルプを呼び出します 
-		return;
-	}
 	else if( nID == ID_DELETESTRING ){	// 削除
 		DeleteString();					// 削除関数を呼び出します
+	}
+	else if (nID == IDS_CATEGORY) {
+		CategoryDlg();
 	}
 	else
 // <--Make
@@ -287,30 +273,33 @@ HCURSOR CCsendDlg::OnQueryDragIcon()
 }
 
 // リストを選択したときに呼ばれます
-void CCsendDlg::OnSelchangeClist() 
+void CCsendDlg::OnSelchangeClist()
 {
-	// TODO: この位置にコントロール通知ハンドラ用のコードを追加してください
-// Make-->
-	CString text;	// リスト文字列取得用
-	CString adds;	// （追加）用
+	int i = m_CList.GetCurSel();
+	if (i == LB_ERR) return;
 
-	int i=m_CList.GetCurSel();	// 現在選択されているリスト
-	m_CList.GetText( i, text );	// 文字列を取得する
-	
-	adds.LoadString( IDS_LISTADD );	// （追加）を取得する
-	if( text != adds ){			// 選択されているリストが（追加）でなければ
-		SendClipBoard( text );	// クリップボードに文字列を転送します
-	}
-	else{		// 選択されているリストが（追加）ならばtextを初期化します
-		text.LoadString( IDS_TITLE );
-	}
-	SetWindowText( text );	// 現在のtextの内容をキャプションに表示します
+	CString text;
+	CString adds;
+	adds.LoadString(IDS_LISTADD);
 
-	// Ctrlキーが押されていたら最小化
+	// 1. まずインデックスがデータの範囲内かチェック
+	if (i < m_dataList.GetCount()) {
+		// 範囲内なら安全に .value を取得
+		text = m_dataList.Datas(i).value;
+		SendClipBoard(text);
+
+		// キャプションには名前（name）を出した方が分かりやすいかも？
+		SetWindowText(m_dataList.Datas(i).name);
+	}
+	else {
+		// 範囲外 ＝ リストの最後にある「(追加)」を選択したとみなす
+		text.LoadString(IDS_TITLE);
+		SetWindowText(text);
+	}
+
 	if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
 		ShowWindow(SW_MINIMIZE);
 	}
-// <--Make
 }
 
 // ダイアログのサイズが変更されるときに呼ばれます
@@ -329,7 +318,8 @@ void CCsendDlg::OnSize(UINT nType, int cx, int cy)
 		GetWindowRect( &rect );		// 現在のウインドウのサイズを取得しておきます
 	}
 
-	m_CList.MoveWindow( 0, 0, cx, cy);	// リストのサイズをダイアログのクライアントサイズに変更します
+	m_CList.MoveWindow( 0, 30, cx, cy);	// リストのサイズをダイアログのクライアントサイズに変更します
+	m_CCombo.MoveWindow(0, 0, cx, 20);
 // <--Make
 }
 
@@ -416,7 +406,6 @@ void CCsendDlg::OnDestroy()
 // Make-->
 
 	::Shell_NotifyIcon( NIM_DELETE, &m_stNtfyIcon );	//タスクトレイのアイコンを削除します。
-	AfxGetApp()->WinHelp(0,HELP_QUIT);	// ヘルプを閉じます
 
 // ver 1.1-->
 	SaveData();	// リストを保存します。
@@ -575,9 +564,16 @@ void CCsendDlg::DeleteString()
 		return;	// キャンセルが選択された場合何もせずに終了します
 	}
 
-	m_CList.DeleteString(j);	// リストから文字列を削除します
+	m_dataList.Remove(i);
+
+	// 2. ファイルに保存
+	SaveData();
+
+	// 3. 表示を更新
+	UpdateList();
 }
 // <--Make
+
 
 // 登録メニューが選択され時に呼ばれます
 void CCsendDlg::OnAddstring() 
@@ -606,49 +602,71 @@ void CCsendDlg::OnDeletestring()
 // <--Make
 }
 
+void CCsendDlg::CategoryDlg()
+{
+	categoryDlg dlg;
+	dlg.SetIniPath(m_iniPath);
+
+	dlg.DoModal();
+	// ダイアログが閉じられたら常にカテゴリを再読み込みしてプルダウンを更新
+	CategoryUpdate();
+}
+
+void CCsendDlg::OnCbnSelchangeComboCategory()
+{
+    // カテゴリを切り替えたら新しいカテゴリの内容を読み込む。
+	// 保存が不要な現在の設計のため SaveData() は呼ばない。
+	// 将来、自動保存を入れる場合の誤追加を避けるため一旦コメントとして残す：
+	// SaveData(); // <-- intentionally commented out to avoid implicit saves on category change
+	UpdateList();
+}
 // メッセージの変更と登録
 // Make-->
 void CCsendDlg::ChangeMessage()
 {
 	CInputBox cInput;	// メッセージ編集用のダイアログ
-	CString text;		// リストの文字列
 	
 	// 現在選択されている文字列を取得します
 	int i=m_CList.GetCurSel();
-	m_CList.GetText( i, text );
-
-	// （追加）をリソースから取得します
-	CString l_tmp;
-	l_tmp.LoadString( IDS_LISTADD );
-
 
 	BOOL flag = FALSE;	// このフラグで、登録と変更を区別します。TRUE--登録  FALSE--変更
 	CString InputWindowName;	// メッセージ編集用のダイアログのキャプション用
-	if( text == l_tmp ){	// 現在の文字列が（追加）の時
+	if( i >= m_dataList.GetCount() ){	// 現在の文字列が（追加）の時
 		InputWindowName.LoadString( IDS_REGIST );	// キャプションは「登録」を選びます
 		flag = TRUE;	// フラグを「登録」(TRUE)にします
 	}
 	else{
-		cInput.SetInputText( text );	// メッセージ編集用のダイアログに現在選択されている文字列を設定します
+		cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value);	// メッセージ編集用のダイアログに現在選択されている文字列を設定します
 		InputWindowName.LoadString( IDS_CHANGE );	// キャプションは「変更」を選びます
 	}
 	cInput.SetWindowName( InputWindowName );	// キャプションを設定します
 
-	if( cInput.DoModal()==IDOK ){	// ダイアログを表示します
-		// OKボタンが押されて終了した場合以下の処理を行います
-		CString text;	// メッセージ編集ダイアログからの文字列取得用
-		cInput.GetInputText(text);	// メッセージ編集用ダイアログから文字列を取得します
-		if( !flag ){	// フラグが「変更」(FALSE)なら、現在のリストの文字列を削除します
-			m_CList.DeleteString(i);
-		}
-		if( text.GetLength() ){	// 取得した文字列がある場合
-			m_CList.InsertString( i, (LPCTSTR) text );	// リストに文字列を追加します
-		}
-	}
-// Make 1.1-->
-	SaveData();	// リストを保存します
-// -->Make 1.1
+	if (cInput.DoModal() == IDOK) {
+		CString title, text;
+		cInput.GetInputText(title, text);
 
+		// 1. メモリ（m_dataList）を更新
+		if (flag) {
+			// 新規追加
+			m_dataList.Add(title, text);
+		}
+		else {
+			// 既存編集
+			m_dataList.Datas(i).name = title;
+			m_dataList.Datas(i).value = text;
+		}
+
+		// 2. 確定したメモリの内容をファイルへ物理保存
+		// ここで m_dataListPath が使われます
+		SaveData();
+
+		// 3. リスト表示を最新状態（ファイルの状態）に同期
+		// これにより、追加した項目も即座に画面に反映されます
+		UpdateList();
+
+		// 編集した位置にカーソルを戻すと親切
+		m_CList.SetCurSel(i);
+	}
 }
 // <--Make
 
@@ -671,15 +689,6 @@ void CCsendDlg::OnExit()
 // <--Make 1.1
 }
 
-void CCsendDlg::OnHelp() 
-{
-	// TODO: この位置にコマンド ハンドラ用のコードを追加してください
-// Make 1.1-->
-	AfxGetApp()->WinHelp(0,HELP_CONTENTS);	// ヘルプを呼び出します 
-// <--Make 1.1
-}
-
-
 // リストデータの保存
 // Make 1.1-->
 void CCsendDlg::SaveData()
@@ -689,41 +698,174 @@ void CCsendDlg::SaveData()
 
 	int j = m_CList.GetCount();	// リストの数を取得します
 
-	CStdioFile savedata;	// 保存用ファイル
-	CString csSaveFileName;	// 保存用ファイル名
-	csSaveFileName.LoadString( IDS_SAVEFILE );	// 保存用ファイルをリソースから取得します
-	if( savedata.Open( csSaveFileName,	// テキストモード、ライト属性で、無い場合は新規作成します
-		CFile::modeCreate | CFile::modeWrite | CFile::typeText ) ){
+	TCHAR szPath[MAX_PATH];
+	GetModuleFileName(NULL, szPath, MAX_PATH); // C:\MyApp\MyApp.exe
+	PathRemoveFileSpec(szPath);                 // C:\MyApp
 
-		int fontSize = 16;              // デフォルト値
-		CString fontName = _T("MS UI Gothic");
+	int fontSize = 16;              // デフォルト値
+	CString fontName = _T("MS UI Gothic");
 
-		if (m_fontSize != 0) {
-			fontSize = m_fontSize;
-			fontName = m_fontName;
-		}
+	if (m_fontSize != 0) {
+		fontSize = m_fontSize;
+		fontName = m_fontName;
+	}
 
-		// --- 1行目: フォント情報 ---
-		CString fontLine;
-		fontLine.Format(_T("%d,%s\n"), fontSize, (LPCTSTR)fontName);
-		savedata.WriteString(fontLine);
+	CString strSize;
+	strSize.Format(_T("%d"), fontSize);
 
+	WritePrivateProfileString(_T("font"), _T("size"), strSize, m_iniPath);
+	WritePrivateProfileString(_T("font"), _T("name"), fontName, m_iniPath);
 
-		char buff[17];	// 2行目用
-		if( !IsIconic() && !IsZoomed() ){	// ウインドウがアイコン化や最大化されていなければ
-			GetWindowRect( &rect );	// ウインドウサイズを取得します
-		}
-		// １行目はサイズと位置を書き込みます
-		wsprintf( buff, "%04X%04X%04X%04X\n", rect.top, rect.left,
-						rect.bottom, rect.right );
-		savedata.WriteString(buff);
+	CString strWindow;
+	if (!IsIconic() && !IsZoomed()) {	// ウインドウがアイコン化や最大化されていなければ
+		GetWindowRect(&rect);	// ウインドウサイズを取得します
+	}
+	strWindow.Format("%04X%04X%04X%04X", rect.top, rect.left,
+		rect.bottom, rect.right);
+	WritePrivateProfileString(_T("Window"), _T("window"), strWindow, m_iniPath);
 
-		for(int i=0; i<j; i++){	// リストを１つづつ取り込んで１行ずつ書き込みます
-			m_CList.GetText( i, l_tmp );
-			l_tmp += "\n";
-			savedata.WriteString(l_tmp);
-		}
-		savedata.Close();	// ファイルを閉じます
+	// --- 2. リストデータ本体の保存 ---
+	int nSel = m_CCombo.GetCurSel();
+	if (nSel == CB_ERR) return;
+
+	if (!m_SavePath.IsEmpty()) {
+		// 構造化されたデータを一括保存
+		m_dataList.SaveAll(m_SavePath);
+	}
+
+	// 終了時に選択中のカテゴリ名を保存（起動時に復元するため）
+	if (nSel != CB_ERR) {
+		CString selName;
+		m_CCombo.GetLBText(nSel, selName);
+		WritePrivateProfileString(_T("category"), _T("last"), selName, m_iniPath);
 	}
 }
 // <--Make 1.1
+
+CString CCsendDlg::Escape(const CString& input)
+{
+	CString out = input;
+
+	// ① まず \ をエスケープ（最重要）
+	out.Replace(_T("\\"), _T("\\\\"));
+
+	// ② 改行（CRLF → \n）
+	out.Replace(_T("\r\n"), _T("\\n"));
+	out.Replace(_T("\n"), _T("\\n")); // 念のため
+
+	// ③ カンマ
+	out.Replace(_T(","), _T("\\,"));
+
+	return out;
+}
+
+CString CCsendDlg::Unescape(const CString& input)
+{
+	CString out = input;
+
+	// 逆順で戻すのがポイント
+
+	// ① \n → 改行
+	out.Replace(_T("\\n"), _T("\r\n"));
+
+	// ② \, → ,
+	out.Replace(_T("\\,"), _T(","));
+
+	// ③ \\ → \
+	out.Replace(_T("\\\\"), _T("\\"));
+
+	return out;
+}
+
+void CCsendDlg::CategoryUpdate()
+{
+	int lastSel = m_CCombo.GetCurSel();
+	if (lastSel < 0) {
+		lastSel = 0;
+	}
+
+	m_CCombo.SetRedraw(FALSE);
+	m_CCombo.ResetContent();
+	m_categorys.LoadAll(m_iniPath);
+
+	for (int i = 0; i < m_categorys.GetCount(); i++) {
+		m_CCombo.AddString(m_categorys.Datas(i).name);
+	}
+
+	// 起動時に前回選択していたカテゴリを復元する
+	CString lastName;
+	TCHAR buf[256];
+	GetPrivateProfileString(_T("category"), _T("last"), _T(""), buf, 256, m_iniPath);
+	lastName = buf;
+
+	int selectIndex = 0;
+	if (!lastName.IsEmpty()) {
+		// 名前で検索して一致するインデックスを選択
+		for (int i = 0; i < m_categorys.GetCount(); i++) {
+			if (m_categorys.Datas(i).name == lastName) {
+				selectIndex = i;
+				break;
+			}
+		}
+	}
+
+	if (selectIndex < 0) selectIndex = 0;
+	m_CCombo.SetCurSel(selectIndex);
+	m_CCombo.SetRedraw(TRUE);
+}
+
+CString CCsendDlg::GetValidFilePath(CString fileName) {
+	// 1. フルパス（m_appPath込み）をチェック
+	CString fullPath = m_appPath + _T("\\") + fileName;
+	CFileStatus status;
+	if (CFile::GetStatus(fullPath, status)) {
+		return fullPath;
+	}
+
+	// 2. 失敗したらファイル名単体（カレントディレクトリ）をチェック
+	if (CFile::GetStatus(fileName, status)) {
+		return fileName;
+	}
+
+	// どちらにもなければ空を返す
+	return _T("");
+}
+
+void CCsendDlg::UpdateList() {
+	m_CList.SetRedraw(FALSE);
+
+	m_CList.ResetContent();
+
+	int crrCatIndex = m_CCombo.GetCurSel();
+	if (crrCatIndex < 0) return;
+
+	// カテゴリーからファイル名を取得
+	CString fileName = m_categorys.Datas(crrCatIndex).path;
+
+	// 有効なパスを取得
+	CString targetPath = GetValidFilePath(fileName);
+
+	// パスが見つかった場合のみ読み込む
+	if (!targetPath.IsEmpty()) {
+		m_SavePath = targetPath;
+		m_dataList.LoadAll(targetPath);
+	}
+	else {
+		// ファイルがない場合はリストをクリア（または新規作成用の状態へ）
+		m_dataList.ClearAll();
+		m_SavePath.Empty();
+	}
+
+	// 読み込んだデータを表示
+	for (int i = 0; i < m_dataList.GetCount(); i++) {
+		m_CList.AddString(m_dataList.Datas(i).name);
+	}
+
+	// 「(追加)」項目
+	CString adds;
+	adds.LoadString(IDS_LISTADD);
+	m_CList.AddString(adds);
+
+	m_CList.SetRedraw(TRUE);
+	m_CList.Invalidate();
+}

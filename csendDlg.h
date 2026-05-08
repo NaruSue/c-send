@@ -1,5 +1,7 @@
 // csendDlg.h : ヘッダー ファイル
 //
+#include "CategoryDataList.h"
+#include "DataValueList.h"
 
 /////////////////////////////////////////////////////////////////////////////
 // CCsendDlg dialog
@@ -11,10 +13,18 @@ public:
 	void SaveData( void );
 	CCsendDlg(CWnd* pParent = NULL);	// 標準のコンストラクタ
 
+	// 文字列エスケープ関連
+	CString Escape(const CString& input);
+	CString Unescape(const CString& input);
+	CString GetValidFilePath(CString fileName);
+	void CategoryUpdate();
+	void UpdateList();
+
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)
 	enum { IDD = IDD_CSEND_DIALOG };
 	CListBox	m_CList;
+	CComboBox m_CCombo;
 	//}}AFX_DATA
 
 	// ClassWizard は仮想関数を生成しオーバーライドします。
@@ -29,9 +39,18 @@ protected:
 	void DeleteString(void);
 	void SendClipBoard( CString& text );
 	HICON m_hIcon;
+	CString m_appPath;
+	CString m_iniPath;
+	CString m_SavePath;
+
 	int m_fontSize = 0;
 	CString m_fontName;
 	CFont m_listFont;
+
+	CCategoryDataList m_categorys;
+	CDataValueList m_dataList;
+
+	void CategoryDlg();
 
 	// 生成されたメッセージ マップ関数
 	//{{AFX_MSG(CCsendDlg)
@@ -53,7 +72,7 @@ protected:
 	afx_msg void OnDeletestring();
 	afx_msg void OnAbout();
 	afx_msg void OnExit();
-	afx_msg void OnHelp();
+ afx_msg void OnCbnSelchangeComboCategory();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 private:
