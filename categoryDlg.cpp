@@ -60,15 +60,18 @@ void categoryDlg::UpdateCategoryList() {
 	m_ListCategory.SetRedraw(FALSE);
 	m_ListCategory.ResetContent();
 	m_currentIndex = -1;
-	int count = m_catList.GetCount();
+    int count = m_catList.GetCount();
 	if (count > 0) {
 		for (int i = 0; i < count; i++) {
-			m_ListCategory.AddString(m_catList.Datas(i).name);
+            int pos = m_ListCategory.AddString(m_catList.Datas(i).name);
+			m_ListCategory.SetItemData(pos, i); // store original index to avoid issues if control is sorted
 		}
 	}
 	CString text;
 	text.LoadString(IDS_LISTADD);
-	m_ListCategory.AddString(text);
+ int addPos = m_ListCategory.AddString(text);
+	// mark the "add" line with a sentinel value (-2) so we can detect it reliably
+	m_ListCategory.SetItemData(addPos, (DWORD_PTR)-2);
 	m_ListCategory.SetRedraw(TRUE);
 	m_ListCategory.Invalidate();
 	m_ListCategory.UpdateWindow();
@@ -105,22 +108,92 @@ void categoryDlg::OnBnClickedButtonCatDown()
 
 void categoryDlg::OnBnClickedButtonCatDel()
 {
-	// TODO: ここにコントロール通知ハンドラー コードを追加します。
+    // 削除処理：物理ファイルは削除せず、INI とリストから削除する
+	// m_currentIndex が選択されていない（追加行など）の場合は何もしない
+	if (m_currentIndex < 0) {
+		CString msg;
+		msg.LoadString(IDS_NODELETE);
+		AfxMessageBox(msg);
+		return;
+	}
+
+	// 確認ダイアログ
+	CString confirm;
+	confirm.Format(_T("Delete category '%s'?"), m_catList.Datas(m_currentIndex).name);
+	if (MessageBox(confirm, _T("Confirm"), MB_ICONQUESTION | MB_OKCANCEL | MB_DEFBUTTON2) == IDCANCEL) {
+		return;
+	}
+
+	// メモリから削除して INI に保存
+	m_catList.Remove(m_currentIndex);
+	m_catList.SaveAll(m_iniPath);
+
+	// リスト再表示
+	UpdateCategoryList();
+
+	// 選択の調整: 削除した位置が存在すれば同じインデックスを、そうでなければ最後の要素を選択
+	int count = m_catList.GetCount();
+	if (count > 0) {
+		int newIndex = m_currentIndex;
+		if (newIndex >= count) newIndex = count - 1;
+		m_ListCategory.SetCurSel(newIndex);
+		m_currentIndex = newIndex;
+		m_strName = m_catList.Datas(newIndex).name;
+		m_strPath = m_catList.Datas(newIndex).path;
+	}
+	else {
+		m_currentIndex = -1;
+		m_strName.Empty();
+		m_strPath.Empty();
+	}
+
+	UpdateData(FALSE);
 }
 
 void categoryDlg::OnLbnSelchangeListCategory()
 {
 	// TODO: ここにコントロール通知ハンドラー コードを追加します。
-	int i = m_ListCategory.GetCurSel();
-	if (i >= m_catList.GetCount()) {
+    int sel = m_ListCategory.GetCurSel();
+	if (sel == LB_ERR) {
 		m_strName.Empty();
 		m_strPath.Empty();
 		m_currentIndex = -1;
 	}
 	else {
-		m_strName = m_catList.Datas(i).name;
-		m_strPath = m_catList.Datas(i).path;
-		m_currentIndex = i;
+     // Use item data mapping to get the real index in m_catList
+		DWORD_PTR data = m_ListCategory.GetItemData(sel);
+		if (data == (DWORD_PTR)-2) {
+			// this is the "add" sentinel
+			m_strName.Empty();
+			m_strPath.Empty();
+			m_currentIndex = -1;
+		}
+		else if (data == LB_ERR) {
+			// fallback: treat sel as index
+			if (sel >= m_catList.GetCount()) {
+				m_strName.Empty();
+				m_strPath.Empty();
+				m_currentIndex = -1;
+			}
+			else {
+				m_strName = m_catList.Datas(sel).name;
+				m_strPath = m_catList.Datas(sel).path;
+				m_currentIndex = sel;
+			}
+		}
+		else {
+			int idx = (int)data;
+			if (idx >= 0 && idx < m_catList.GetCount()) {
+				m_strName = m_catList.Datas(idx).name;
+				m_strPath = m_catList.Datas(idx).path;
+				m_currentIndex = idx;
+			}
+			else {
+				m_strName.Empty();
+				m_strPath.Empty();
+				m_currentIndex = -1;
+			}
+		}
 	}
 
 	UpdateData(FALSE);

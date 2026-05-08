@@ -850,11 +850,15 @@ void CCsendDlg::UpdateList() {
 		m_SavePath = targetPath;
 		m_dataList.LoadAll(targetPath);
 	}
-	else {
-		// ファイルがない場合はリストをクリア（または新規作成用の状態へ）
+    else {
+		// ファイルが見つからない場合でも、新規作成を許容するために m_SavePath を
+		// アプリケーションフォルダ下の候補パスとして設定する。
+		CString candidate = m_appPath + _T("\\") + fileName;
+		m_SavePath = candidate;
+		// ここではファイルの読み込みは行わない（LoadAll はファイル存在時のみ必要）。
 		m_dataList.ClearAll();
-		m_SavePath.Empty();
 	}
+    // (no further else) when file not found, m_SavePath is set to candidate above and list cleared
 
 	// 読み込んだデータを表示
 	for (int i = 0; i < m_dataList.GetCount(); i++) {

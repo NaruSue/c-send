@@ -1,6 +1,75 @@
 #include "stdafx.h"
 #include "DataValueList.h"
 
+// helper: escape/unescape value strings for single-line storage
+static CString EscapeValueForStorage(const CString& input) {
+    CString out;
+    out.Preallocate(input.GetLength() * 2 + 4);
+    for (int i = 0; i < input.GetLength(); ++i) {
+        TCHAR c = input[i];
+        switch (c) {
+        case '\\':
+            out += _T("\\\\"); // store single backslash as double backslash
+            break;
+        case '\r':
+            out += _T("\\r");
+            break;
+        case '\n':
+            out += _T("\\n");
+            break;
+        case ',':
+            out += _T("\\,");
+            break;
+        default:
+            out += c;
+            break;
+        }
+    }
+    return out;
+}
+
+static CString UnescapeValueFromStorage(const CString& input) {
+    CString out;
+    out.Preallocate(input.GetLength());
+    int i = 0;
+    int n = input.GetLength();
+    while (i < n) {
+        TCHAR c = input[i];
+        if (c != '\\') {
+            out += c;
+            ++i;
+            continue;
+        }
+        // c == '\\' and there is possibly an escape sequence
+        if (i + 1 >= n) {
+            // trailing backslash, treat as literal
+            out += '\\';
+            break;
+        }
+        TCHAR nx = input[i + 1];
+        switch (nx) {
+        case 'r':
+            out += '\r';
+            break;
+        case 'n':
+            out += '\n';
+            break;
+        case '\\':
+            out += '\\';
+            break;
+        case ',':
+            out += ',';
+            break;
+        default:
+            // unknown escape, keep the character as-is
+            out += nx;
+            break;
+        }
+        i += 2;
+    }
+    return out;
+}
+
 CDataValueList::CDataValueList()
 {
 }
@@ -40,7 +109,8 @@ void CDataValueList::LoadAll(CString txtPath)
         // 3行目(value)の読み込み
         if (file.ReadString(lineVal))
         {
-            data.value = lineVal.Trim();
+            // do not Trim() value because leading/trailing spaces may be significant
+            data.value = UnescapeValueFromStorage(lineVal);
         }
 
         // --- typeに応じた拡張ポイント ---
@@ -78,7 +148,7 @@ void CDataValueList::SaveAll(CString txtPath)
 
         file.WriteString(data.name + _T("\n"));
         file.WriteString(strType + _T("\n"));
-        file.WriteString(data.value + _T("\n"));
+        file.WriteString(EscapeValueForStorage(data.value) + _T("\n"));
     }
 
     file.Close();

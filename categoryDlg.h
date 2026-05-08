@@ -13,7 +13,7 @@ public:
 	virtual ~categoryDlg();
 
 
-	CListBox m_listCat;           // IDC_LIST_CATEGORY
+    // CListBox m_listCat; (unused) removed to avoid confusion
 	CString  m_strName;           // IDC_EDIT_CAT_NAME
 	CString  m_strPath;           // IDC_EDIT_CAT_PATH
 
