@@ -77,6 +77,45 @@ void categoryDlg::UpdateCategoryList() {
 	m_ListCategory.UpdateWindow();
 }
 
+// Find the displayed list box position that corresponds to internal index
+int categoryDlg::FindListPosByIndex(int idx) {
+	int n = m_ListCategory.GetCount();
+	for (int i = 0; i < n; i++) {
+		DWORD_PTR data = m_ListCategory.GetItemData(i);
+		if (data == (DWORD_PTR)idx) return i;
+	}
+	return LB_ERR;
+}
+
+// Select by internal index (sets listbox selection and m_currentIndex and edit fields)
+void categoryDlg::SelectByIndex(int idx) {
+	if (idx < 0 || idx >= m_catList.GetCount()) {
+		m_ListCategory.SetCurSel(LB_ERR);
+		m_currentIndex = -1;
+		m_strName.Empty();
+		m_strPath.Empty();
+		UpdateData(FALSE);
+		return;
+	}
+	int pos = FindListPosByIndex(idx);
+	if (pos == LB_ERR) {
+		// Fallback: try to select by idx position
+		if (idx < m_ListCategory.GetCount()) {
+			m_ListCategory.SetCurSel(idx);
+		}
+		else {
+			m_ListCategory.SetCurSel(0);
+		}
+	}
+	else {
+		m_ListCategory.SetCurSel(pos);
+	}
+	m_currentIndex = idx;
+	m_strName = m_catList.Datas(idx).name;
+	m_strPath = m_catList.Datas(idx).path;
+	UpdateData(FALSE);
+}
+
 // categoryDlg メッセージ ハンドラー
 
 void categoryDlg::OnBnClickedOk()
@@ -98,12 +137,42 @@ void categoryDlg::OnBnClickedCancel()
 
 void categoryDlg::OnBnClickedButtonCatUp()
 {
-	// TODO: ここにコントロール通知ハンドラー コードを追加します。
+    // 上へ移動
+	int count = m_catList.GetCount();
+	if (m_currentIndex <= 0 || m_currentIndex >= count) {
+		// 先頭または未選択なら何もしない
+		return;
+	}
+
+	m_catList.MoveUp(m_currentIndex);
+	m_catList.SaveAll(m_iniPath);
+
+	// リストを再表示して選択を移動
+    UpdateCategoryList();
+	int newIndex = m_currentIndex - 1;
+	if (newIndex < 0) newIndex = 0;
+	// select by internal index so the displayed cursor stays near moved item
+	SelectByIndex(newIndex);
 }
 
 void categoryDlg::OnBnClickedButtonCatDown()
 {
-	// TODO: ここにコントロール通知ハンドラー コードを追加します。
+    // 下へ移動
+	int count = m_catList.GetCount();
+	if (m_currentIndex < 0 || m_currentIndex >= count - 1) {
+		// 末尾または未選択なら何もしない
+		return;
+	}
+
+	m_catList.MoveDown(m_currentIndex);
+	m_catList.SaveAll(m_iniPath);
+
+	// リストを再表示して選択を移動
+    UpdateCategoryList();
+	int newIndex = m_currentIndex + 1;
+	if (newIndex >= m_catList.GetCount()) newIndex = m_catList.GetCount() - 1;
+	// select by internal index so the displayed cursor stays near moved item
+	SelectByIndex(newIndex);
 }
 
 void categoryDlg::OnBnClickedButtonCatDel()
