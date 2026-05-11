@@ -10,13 +10,14 @@ class CInputBox : public CDialog
 public:
 	void SetWindowName( CString text );
 	CInputBox(CWnd* pParent = NULL);   // 標準のコンストラクタ
-	void GetInputText( CString& text );
-	void SetInputText( CString& text );
+	void GetInputText( CString& title, CString& text);
+	void SetInputText( CString& title, CString& text);
 
 // ダイアログ データ
 	//{{AFX_DATA(CInputBox)
 	enum { IDD = IDD_DIALOG1 };
 	CEdit	m_Edit;
+	CEdit	m_ETitle;
 	//}}AFX_DATA
 
 
@@ -37,5 +38,6 @@ protected:
 	DECLARE_MESSAGE_MAP()
 private:
 	CString m_InputText;
+	CString m_InputTitle;
 	CString m_WindowName;
 };

@@ -29,6 +29,7 @@ void CInputBox::DoDataExchange(CDataExchange* pDX)
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(CInputBox)
 	DDX_Control(pDX, IDC_EDIT1, m_Edit);
+	DDX_Control(pDX, IDC_EDIT2, m_ETitle);
 	//}}AFX_DATA_MAP
 }
 
@@ -41,14 +42,16 @@ END_MESSAGE_MAP()
 /////////////////////////////////////////////////////////////////////////////
 // CInputBox メッセージ ハンドラ
 
-void CInputBox::SetInputText( CString& text )
+void CInputBox::SetInputText(CString& title, CString& text )
 {
 	m_InputText = text;
+	m_InputTitle = title;
 }
 
-void CInputBox::GetInputText( CString& text )
+void CInputBox::GetInputText(CString& title, CString& text )
 {
 	text = m_InputText;
+	title = m_InputTitle;
 }
 
 void CInputBox::SetWindowName( CString text )
@@ -66,9 +69,11 @@ BOOL CInputBox::OnInitDialog()
 
 	if( m_InputText.GetLength() ){
 		m_Edit.SetWindowText(m_InputText);
+		m_ETitle.SetWindowText(m_InputTitle);
 	}
 	else{
 		m_Edit.Paste();
+		m_ETitle.Paste();
 	}
 	return TRUE;  // コントロールにフォーカスを設定しないとき、戻り値は TRUE となります
 	              // 例外: OCX プロパティ ページの戻り値は FALSE となります
@@ -78,6 +83,10 @@ void CInputBox::OnOK()
 {
 	// TODO: この位置にその他の検証用のコードを追加してください
 	m_Edit.GetWindowText(m_InputText);
+	m_ETitle.GetWindowText(m_InputTitle);
+	if (m_InputTitle.IsEmpty()) {
+		m_InputTitle = m_InputText;
+	}
 
 	CDialog::OnOK();
 }
