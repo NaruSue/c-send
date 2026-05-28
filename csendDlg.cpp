@@ -564,7 +564,8 @@ void CCsendDlg::DeleteString()
 		return;	// キャンセルが選択された場合何もせずに終了します
 	}
 
-	m_dataList.Remove(i);
+    // remove the selected item (j), not the total count (i)
+	m_dataList.Remove(j);
 
 	// 2. ファイルに保存
 	SaveData();
