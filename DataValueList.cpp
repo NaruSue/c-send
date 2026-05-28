@@ -86,8 +86,15 @@ void CDataValueList::LoadAll(CString txtPath)
 
     CStdioFile file;
     // 読み込みモードでオープン（ファイルが存在しない場合はそのまま戻る）
-    if (!file.Open(txtPath, CFile::modeRead | CFile::typeText))
-    {
+    try {
+        if (!file.Open(txtPath, CFile::modeRead | CFile::typeText)) {
+            return;
+        }
+    }
+    catch (CFileException& ex) {
+        CString msg;
+        msg.Format(_T("Failed to open data file for read: %s"), txtPath);
+        AfxMessageBox(msg);
         return;
     }
 
@@ -132,26 +139,40 @@ void CDataValueList::SaveAll(CString txtPath)
 {
     CStdioFile file;
     // 書き込みモード（新規作成・上書き）
-    if (!file.Open(txtPath, CFile::modeCreate | CFile::modeWrite | CFile::typeText))
-    {
+    try {
+        if (!file.Open(txtPath, CFile::modeCreate | CFile::modeWrite | CFile::typeText)) {
+            CString msg;
+            msg.Format(_T("Failed to open data file for write: %s"), txtPath);
+            AfxMessageBox(msg);
+            return;
+        }
+
+        int count = (int)m_arr.GetSize();
+        for (int i = 0; i < count; i++)
+        {
+            ItemData& data = m_arr.ElementAt(i);
+
+            // 3行書き出し（最後に改行を付与）
+            CString strType;
+            strType.Format(_T("%d"), data.type);
+
+            file.WriteString(data.name + _T("\n"));
+            file.WriteString(strType + _T("\n"));
+            file.WriteString(EscapeValueForStorage(data.value) + _T("\n"));
+        }
+
+        file.Close();
+    }
+    catch (CFileException& ex) {
+        CString msg;
+        msg.Format(_T("Error writing data file: %s"), txtPath);
+        AfxMessageBox(msg);
+        // try to close if open
+        if (file.m_pStream != NULL) {
+            file.Abort();
+        }
         return;
     }
-
-    int count = (int)m_arr.GetSize();
-    for (int i = 0; i < count; i++)
-    {
-        ItemData& data = m_arr.ElementAt(i);
-
-        // 3行書き出し（最後に改行を付与）
-        CString strType;
-        strType.Format(_T("%d"), data.type);
-
-        file.WriteString(data.name + _T("\n"));
-        file.WriteString(strType + _T("\n"));
-        file.WriteString(EscapeValueForStorage(data.value) + _T("\n"));
-    }
-
-    file.Close();
 }
 
 // データアクセス
