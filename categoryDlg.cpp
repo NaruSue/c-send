@@ -69,9 +69,11 @@ void categoryDlg::UpdateCategoryList() {
 	}
 	CString text;
 	text.LoadString(IDS_LISTADD);
- int addPos = m_ListCategory.AddString(text);
+    int addPos = m_ListCategory.AddString(text);
 	// mark the "add" line with a sentinel value (-2) so we can detect it reliably
-	m_ListCategory.SetItemData(addPos, (DWORD_PTR)-2);
+	if (addPos != LB_ERR) {
+		m_ListCategory.SetItemData(addPos, (DWORD_PTR)-2);
+	}
 	m_ListCategory.SetRedraw(TRUE);
 	m_ListCategory.Invalidate();
 	m_ListCategory.UpdateWindow();
@@ -82,7 +84,8 @@ int categoryDlg::FindListPosByIndex(int idx) {
 	int n = m_ListCategory.GetCount();
 	for (int i = 0; i < n; i++) {
 		DWORD_PTR data = m_ListCategory.GetItemData(i);
-		if (data == (DWORD_PTR)idx) return i;
+        // GetItemData may return LB_ERR; ensure comparison is robust
+		if (data != LB_ERR && data == (DWORD_PTR)idx) return i;
 	}
 	return LB_ERR;
 }
@@ -100,11 +103,14 @@ void categoryDlg::SelectByIndex(int idx) {
 	int pos = FindListPosByIndex(idx);
 	if (pos == LB_ERR) {
 		// Fallback: try to select by idx position
-		if (idx < m_ListCategory.GetCount()) {
+        if (idx < m_ListCategory.GetCount()) {
 			m_ListCategory.SetCurSel(idx);
 		}
-		else {
+		else if (m_ListCategory.GetCount() > 0) {
 			m_ListCategory.SetCurSel(0);
+		}
+		else {
+			m_ListCategory.SetCurSel(LB_ERR);
 		}
 	}
 	else {
