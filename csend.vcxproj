@@ -131,6 +131,7 @@
   <ItemGroup>
     <ClCompile Include="CategoryDataList.cpp" />
     <ClCompile Include="categoryDlg.cpp" />
+    <ClCompile Include="CDataSource.cpp" />
     <ClCompile Include="csend.cpp" />
     <ClCompile Include="csendDlg.cpp" />
     <ClCompile Include="DataValueList.cpp" />
@@ -151,6 +152,7 @@
   <ItemGroup>
     <ClInclude Include="CategoryDataList.h" />
     <ClInclude Include="categoryDlg.h" />
+    <ClInclude Include="CDataSource.h" />
     <ClInclude Include="csend.h" />
     <ClInclude Include="csendDlg.h" />
     <ClInclude Include="DataValueList.h" />

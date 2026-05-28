@@ -36,6 +36,9 @@
     <ClCompile Include="DataValueList.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CDataSource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="csend.rc">
@@ -70,6 +73,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DataValueList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CDataSource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
