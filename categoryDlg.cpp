@@ -312,20 +312,6 @@ void categoryDlg::OnBnClickedButtonCatSave()
 		data.path = m_strPath;
 		m_catList.Add(data);
 		m_catList.SaveAll(m_iniPath);
-		{
-			CString msg;
-			msg.Format(_T("Saved to:\r\n%s"), m_iniPath);
-			AfxMessageBox(msg, MB_OK);
-		}
-        // デバッグ: メモリ上のリスト状態を確認
-		{
-			CString dbg;
-			dbg.Format(_T("In-memory count=%d\r\n"), m_catList.GetCount());
-			for (int j = 0; j < m_catList.GetCount(); j++) {
-				dbg.AppendFormat(_T("%d: %s\r\n"), j, m_catList.Datas(j).name);
-			}
-			AfxMessageBox(dbg, MB_OK);
-		}
 		// リスト再表示
 		UpdateCategoryList();
 		// 選択を新しく追加した最後のアイテムにする
@@ -340,20 +326,6 @@ void categoryDlg::OnBnClickedButtonCatSave()
 		m_catList.Datas(m_currentIndex).name = m_strName;
 		m_catList.Datas(m_currentIndex).path = m_strPath;
 		m_catList.SaveAll(m_iniPath);
-		{
-			CString msg;
-			msg.Format(_T("Saved to:\r\n%s"), m_iniPath);
-			AfxMessageBox(msg, MB_OK);
-		}
-        // デバッグ: メモリ上のリスト状態を確認
-		{
-			CString dbg;
-			dbg.Format(_T("In-memory count=%d\r\n"), m_catList.GetCount());
-			for (int j = 0; j < m_catList.GetCount(); j++) {
-				dbg.AppendFormat(_T("%d: %s\r\n"), j, m_catList.Datas(j).name);
-			}
-			AfxMessageBox(dbg, MB_OK);
-		}
 		UpdateCategoryList();
 		if (m_currentIndex >= 0 && m_currentIndex < m_ListCategory.GetCount()) {
 			m_ListCategory.SetCurSel(m_currentIndex);
