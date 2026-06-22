@@ -38,6 +38,7 @@
 #define IDC_EDIT_CAT_NAME               1010
 #define IDC_EDIT_CAT_PATH               1011
 #define IDC_BUTTON_CAT_SAVE             1013
+#define IDC_ABOUT_VERSION               1014
 #define ID_ADDSTRING                    32771
 #define ID_CHANGE                       32772
 #define ID_DELETESTRING                 32773
@@ -50,7 +51,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        133
 #define _APS_NEXT_COMMAND_VALUE         32777
-#define _APS_NEXT_CONTROL_VALUE         1012
+#define _APS_NEXT_CONTROL_VALUE         1015
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

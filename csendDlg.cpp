@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "csend.h"
 #include "csendDlg.h"
+#include "version.h"
 
 // Make -->
 #include "InputBox.h"	// 文字列登録用ダイアログのヘッダファイル
@@ -28,6 +29,7 @@ class CAboutDlg : public CDialog
 {
 public:
 	CAboutDlg();
+    virtual BOOL OnInitDialog();
 
 // ダイアログ データ
 	//{{AFX_DATA(CAboutDlg)
@@ -107,6 +109,17 @@ BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
  ON_CBN_SELCHANGE(IDC_COMBO_CATEGORY, &CCsendDlg::OnCbnSelchangeComboCategory)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
+
+BOOL CAboutDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	CString versionText;
+	versionText.Format(_T("C-Send Version %s"), CSEND_VERSION_TEXT);
+	SetDlgItemText(IDC_ABOUT_VERSION, versionText);
+
+	return TRUE;
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // CCsendDlg メッセージ ハンドラ
