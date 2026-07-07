@@ -1,0 +1,31 @@
+Select All
+0
+SELECT * FROM users;
+
+Count Rows
+0
+SELECT COUNT(*) FROM users;
+
+Latest 10 Rows
+0
+SELECT * FROM users ORDER BY created_at DESC LIMIT 10;
+
+Search by Status
+0
+SELECT * FROM users WHERE status = 'active';
+
+Sort by Update Time
+0
+SELECT id, name FROM users ORDER BY updated_at DESC;
+
+Insert Row
+0
+INSERT INTO users (name, email) VALUES ('Taro', 'taro@example.com');
+
+Update Row
+0
+UPDATE users SET status = 'active' WHERE id = 1;
+
+Delete Row
+0
+DELETE FROM users WHERE id = 1;

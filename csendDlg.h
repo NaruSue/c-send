@@ -39,6 +39,7 @@ protected:
 	void ChangeMessage( void );
 	void DeleteString(void);
 	void SendClipBoard( CString& text );
+	BOOL ConfirmExit();
 	HICON m_hIcon;
 	CString m_appPath;
 	CString m_iniPath;

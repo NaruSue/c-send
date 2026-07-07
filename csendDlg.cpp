@@ -428,11 +428,19 @@ void CCsendDlg::OnDblclkClist()
 // <--Make
 }
 
+BOOL CCsendDlg::ConfirmExit()
+{
+	return (MessageBox(_T("終了しますか？"), _T("確認"), MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES);
+}
+
 // ウインドウを閉じるときに呼ばれます
 void CCsendDlg::OnClose() 
 {
 	// TODO: この位置にメッセージ ハンドラ用のコードを追加するかまたはデフォルトの処理を呼び出してください
 // Make-->
+	if (!ConfirmExit()) {
+		return;
+	}
 	CDialog::OnOK();	// ウインドウを閉じます
 // <--Make
 }
@@ -746,6 +754,9 @@ void CCsendDlg::OnExit()
 {
 	// TODO: この位置にコマンド ハンドラ用のコードを追加してください
 // Make 1.1-->
+	if (!ConfirmExit()) {
+		return;
+	}
 	CDialog::OnOK();	// ウインドウを閉じます
 // <--Make 1.1
 }

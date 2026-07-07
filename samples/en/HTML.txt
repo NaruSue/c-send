@@ -1,0 +1,27 @@
+Basic HTML
+0
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Title</title></head><body></body></html>
+
+Link
+0
+<a href="https://example.com">Example</a>
+
+Image
+0
+<img src="image.png" alt="image">
+
+Input Field
+0
+<input type="text" name="name" placeholder="Name">
+
+Button
+0
+<button type="button">Submit</button>
+
+List
+0
+<ul><li>Item 1</li><li>Item 2</li></ul>
+
+Table
+0
+<table><tr><th>Item</th><th>Value</th></tr></table>

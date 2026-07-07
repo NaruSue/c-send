@@ -1,0 +1,31 @@
+Double Quotes
+0
+""
+
+Single Quotes
+0
+'
+
+Brackets
+0
+[]
+
+Braces
+0
+{}
+
+Parentheses
+0
+()
+
+Arrow
+0
+=>
+
+At Sign
+0
+@
+
+Separator
+0
+---
