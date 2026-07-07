@@ -2,6 +2,7 @@
 //
 #include "CategoryDataList.h"
 #include "DataValueList.h"
+#include "ClipboardTipWnd.h"
 
 /////////////////////////////////////////////////////////////////////////////
 // CCsendDlg dialog
@@ -20,6 +21,8 @@ public:
 	void CategoryUpdate();
 	void UpdateList();
 	void UpdateLayout();
+	void LoadNotificationSettings();
+	void ShowCopyFeedback(const CString& itemName);
 
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)
@@ -38,7 +41,7 @@ public:
 protected:
 	void ChangeMessage( void );
 	void DeleteString(void);
-	void SendClipBoard( CString& text );
+	BOOL SendClipBoard( CString& text );
 	BOOL ConfirmExit();
 	HICON m_hIcon;
 	CString m_appPath;
@@ -81,5 +84,14 @@ private:
 	NOTIFYICONDATA m_stNtfyIcon;
 	RECT rect;
 	CString m_SelText;
+	BOOL m_bCurrentCategoryIsUrl = FALSE;
+	BOOL m_bCurrentCategoryIsReadOnly = FALSE;
+	BOOL m_bToastEnabled = FALSE;
+	UINT m_tipTimeoutMs = 3000;
+	CClipboardTipWnd m_tipWnd;
 };
+
+
+
+
 
