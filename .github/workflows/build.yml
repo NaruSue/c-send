@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit to build. Leave blank to use the selected workflow ref.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          .\build.cmd Release
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: csend-exe-${{ github.run_number }}
+          path: Release\x64\csend.exe
+          if-no-files-found: error
+          retention-days: 14
