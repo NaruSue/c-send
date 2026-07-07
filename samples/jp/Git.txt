@@ -1,35 +1,27 @@
 ステータス確認
 0
 git status
-
 最新を取得
 0
 git pull
-
 すべて追加
 0
 git add .
-
 コミット
 0
 git commit -m ""
-
 プッシュ
 0
 git push
-
 新しいブランチを作成
 0
 git checkout -b feature/
-
 現在のブランチを表示
 0
 git branch
-
 変更内容を表示
 0
 git diff
-
 コミット履歴を表示
 0
 git log --oneline
