@@ -4,15 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Branch to build
-        required: true
-        type: choice
-        options:
-          - master
-          - develop/v1.6
-          - feature/codex_1.6
-          - feature/category-save-restore
-        default: master
+        description: Branch, tag, or commit to build. Leave blank to use the selected workflow ref.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -31,7 +25,7 @@ jobs:
         with:
           clean: true
           fetch-depth: 0
-          ref: refs/heads/${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Show build target
         shell: pwsh
