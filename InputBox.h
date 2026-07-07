@@ -9,6 +9,7 @@ class CInputBox : public CDialog
 // コンストラクション
 public:
 	void SetWindowName( CString text );
+	void SetViewOnly( BOOL bReadOnly );
 	CInputBox(CWnd* pParent = NULL);   // 標準のコンストラクタ
 	void GetInputText( CString& title, CString& text);
 	void SetInputText( CString& title, CString& text);
@@ -40,4 +41,5 @@ private:
 	CString m_InputText;
 	CString m_InputTitle;
 	CString m_WindowName;
+	BOOL m_bViewOnly;
 };

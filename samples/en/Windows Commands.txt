@@ -1,0 +1,31 @@
+Show Current Folder
+0
+cd
+
+List Files
+0
+dir
+
+Print Text
+0
+echo Hello
+
+Create Folder
+0
+mkdir sample
+
+Delete File
+0
+del sample.txt
+
+Delete Folder
+0
+rmdir /s /q sample
+
+Check IP Config
+0
+ipconfig
+
+Show Running Tasks
+0
+tasklist

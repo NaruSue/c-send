@@ -23,13 +23,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          clean: true
           fetch-depth: 0
           ref: ${{ inputs.ref || github.ref }}
+
+      - name: Show build target
+        shell: pwsh
+        run: |
+          git rev-parse --short HEAD
+          git branch --show-current
+          git status --short
+          Get-ChildItem -Recurse -File | Select-Object FullName
 
       - name: Build Release
         shell: pwsh
         run: |
           .\build.cmd Release
+
+      - name: Inspect release output
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path .\Release) {
+            Get-ChildItem -Recurse .\Release | Select-Object FullName,Length
+          } else {
+            Write-Host "Release directory not found."
+          }
+          if (Test-Path .\Release\x64\csend.exe) {
+            Write-Host "csend.exe exists."
+          } else {
+            Write-Host "csend.exe not found."
+          }
 
       - name: Upload executable
         uses: actions/upload-artifact@v4

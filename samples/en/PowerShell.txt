@@ -1,0 +1,31 @@
+Show Location
+0
+Get-Location
+
+List Files
+0
+Get-ChildItem
+
+Show File Content
+0
+Get-Content .\README.md
+
+Check Services
+0
+Get-Service
+
+Check Processes
+0
+Get-Process
+
+Show Environment Variables
+0
+Get-ChildItem Env:
+
+Format Table
+0
+Format-Table -AutoSize
+
+Output JSON
+0
+ConvertTo-Json -Depth 3

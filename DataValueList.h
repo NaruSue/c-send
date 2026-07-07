@@ -18,20 +18,20 @@ public:
     CDataValueList();
     ~CDataValueList();
 
-    // 主要機能
+    // Core operations
     void LoadAll(CString txtPath);
     void SaveAll(CString txtPath);
 
-    // データアクセス
+    // Data access
     ItemData& Datas(int i);
     int GetCount() const;
 
-    // 並び替え補助（管理画面用）
+    // Reorder helpers (admin UI)
     void MoveUp(int i);
     void MoveDown(int i);
     void ClearAll() { m_arr.RemoveAll(); }
 
-    // CDataValueList.h の public: 内に追加
+    // Added inside the public section of CDataValueList
     void Add(CString name, CString value) {
         ItemData data;
         data.name = name;
@@ -39,7 +39,7 @@ public:
         m_arr.Add(data);
     }
 
-    // 指定したインデックスのデータを削除
+    // Remove data at the specified index
     void Remove(int i) {
         if (i >= 0 && i < m_arr.GetSize()) {
             m_arr.RemoveAt(i);
