@@ -1,6 +1,7 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
+#include "version.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -78,7 +79,7 @@ FONT 9, "ＭＳ Ｐゴシック", 0, 0, 0x0
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,50,43,32,14,WS_GROUP
     ICON            IDR_MAINFRAME,IDC_STATIC,4,15,20,20
-    CTEXT           "C-Send Version 1.5",IDC_STATIC,13,7,119,8,SS_NOPREFIX
+    CTEXT           "",1014,13,7,119,8,SS_NOPREFIX
     CTEXT           "Copyright (C) N.Sue",IDC_STATIC,38,25,72,8
 END
 
@@ -127,8 +128,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,5,0,0
- PRODUCTVERSION 1,5,0,0
+ FILEVERSION CSEND_VERSION_FILEVERSION
+ PRODUCTVERSION CSEND_VERSION_FILEVERSION
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x3L
@@ -145,12 +146,12 @@ BEGIN
         BEGIN
             VALUE "Comments", "登録した文字をクリップボードへ転送するツール\\nパスワードなどは登録しないように"
             VALUE "FileDescription", "C-Send クリップボード関連アプリケーション"
-            VALUE "FileVersion", "1.5.0.0"
+            VALUE "FileVersion", CSEND_VERSION_TEXT ".0"
             VALUE "InternalName", "C-Send"
             VALUE "LegalCopyright", "Copyright (C) N.Sue"
             VALUE "OriginalFilename", "CSEND.EXE"
             VALUE "ProductName", "C-Send"
-            VALUE "ProductVersion", "1.5.0.0"
+            VALUE "ProductVersion", CSEND_VERSION_TEXT ".0"
         END
     END
     BLOCK "VarFileInfo"

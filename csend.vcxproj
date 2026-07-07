@@ -88,7 +88,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
-      <OutputFile>.\Debug\csend.exe</OutputFile>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -125,7 +125,7 @@
     <Link>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <SubSystem>Windows</SubSystem>
-      <OutputFile>.\Release\csend.exe</OutputFile>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -157,6 +157,7 @@
     <ClInclude Include="csendDlg.h" />
     <ClInclude Include="DataValueList.h" />
     <ClInclude Include="InputBox.h" />
+    <ClInclude Include="version.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="StdAfx.h" />
   </ItemGroup>

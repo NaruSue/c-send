@@ -60,6 +60,9 @@
     <ClInclude Include="InputBox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="version.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="StdAfx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
