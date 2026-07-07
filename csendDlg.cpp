@@ -4,11 +4,124 @@
 #include "stdafx.h"
 #include "csend.h"
 #include "csendDlg.h"
+#include "version.h"
 
 // Make -->
 #include "InputBox.h"	// 文字列登録用ダイアログのヘッダファイル
 #include "categoryDlg.h"
+#include "ToastNotificationHelper.h"
+#include <wininet.h>
+
+#pragma comment(lib, "wininet.lib")
+
+static bool IsHttpUrl(const CString& path)
+{
+	return path.Left(7).CompareNoCase(_T("http://")) == 0 ||
+		path.Left(8).CompareNoCase(_T("https://")) == 0;
+}
+
+static bool IsReadOnlyFilePath(const CString& path)
+{
+	DWORD attr = GetFileAttributes(path);
+	if (attr == INVALID_FILE_ATTRIBUTES) {
+		return false;
+	}
+	return (attr & FILE_ATTRIBUTE_READONLY) != 0;
+}
+
+static bool IsSettingOn(const CString& value)
+{
+	CString v(value);
+	v.Trim();
+	return v.CompareNoCase(_T("on")) == 0 || v.CompareNoCase(_T("1")) == 0 ||
+		v.CompareNoCase(_T("true")) == 0 || v.CompareNoCase(_T("yes")) == 0;
+}
+
+
+static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
+{
+	TCHAR tempDir[MAX_PATH] = { 0 };
+	if (GetTempPath(MAX_PATH, tempDir) == 0) {
+		return false;
+	}
+
+	TCHAR tempFile[MAX_PATH] = { 0 };
+	if (GetTempFileName(tempDir, _T("csd"), 0, tempFile) == 0) {
+		return false;
+	}
+
+	CFile file;
+	if (!file.Open(tempFile, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary)) {
+		DeleteFile(tempFile);
+		return false;
+	}
+
+	HINTERNET hSession = InternetOpen(_T("C-Send"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+	if (hSession == NULL) {
+		file.Close();
+		DeleteFile(tempFile);
+		return false;
+	}
+
+	HINTERNET hFile = InternetOpenUrl(
+		hSession,
+		url,
+		NULL,
+		0,
+		INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_PRAGMA_NOCACHE,
+		0);
+
+	if (hFile == NULL) {
+		InternetCloseHandle(hSession);
+		file.Close();
+		DeleteFile(tempFile);
+		return false;
+	}
+
+	char buffer[4096];
+	DWORD bytesRead = 0;
+	BOOL ok = TRUE;
+	while ((ok = InternetReadFile(hFile, buffer, sizeof(buffer), &bytesRead)) && bytesRead > 0) {
+		file.Write(buffer, bytesRead);
+	}
+
+	InternetCloseHandle(hFile);
+	InternetCloseHandle(hSession);
+	file.Close();
+
+	if (!ok) {
+		DeleteFile(tempFile);
+		return false;
+	}
+
+	tempPath = tempFile;
+	return true;
+}
+
+static CString MakeWindowTitle(const CString& base, BOOL isReadOnly)
+{
+	CString title = base;
+	if (title.IsEmpty()) {
+		title = _T("C-Send");
+	}
+	if (isReadOnly) {
+		title += _T(" [RO]");
+	}
+	return title;
+}
 // <--Make
+static CString MakeCategoryLabel(const CString& name, const CString& path)
+{
+	CString label = name;
+	if (IsHttpUrl(path)) {
+		label += _T(" [URL]");
+	}
+	else if (IsReadOnlyFilePath(path)) {
+		label += _T(" [RO]");
+	}
+	return label;
+}
+
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -28,6 +141,7 @@ class CAboutDlg : public CDialog
 {
 public:
 	CAboutDlg();
+    virtual BOOL OnInitDialog();
 
 // ダイアログ データ
 	//{{AFX_DATA(CAboutDlg)
@@ -87,6 +201,82 @@ void CCsendDlg::DoDataExchange(CDataExchange* pDX)
 	//}}AFX_DATA_MAP
 }
 
+void CCsendDlg::UpdateLayout()
+{
+    if (!::IsWindow(m_CList.m_hWnd) || !::IsWindow(m_CCombo.m_hWnd)) {
+        return;
+    }
+
+    CRect rcClient;
+    GetClientRect(&rcClient);
+
+    CFont* pFont = m_CCombo.GetFont();
+    if (pFont == NULL) {
+        pFont = m_CList.GetFont();
+    }
+    CClientDC dc(this);
+    CFont* pOldFont = NULL;
+    if (pFont != NULL) {
+        pOldFont = dc.SelectObject(pFont);
+    }
+
+    TEXTMETRIC tm{};
+    dc.GetTextMetrics(&tm);
+
+    if (pOldFont != NULL) {
+        dc.SelectObject(pOldFont);
+    }
+
+    int comboHeight = tm.tmHeight + tm.tmExternalLeading + 8;
+    if (comboHeight < 20) {
+        comboHeight = 20;
+    }
+
+    int gap = comboHeight / 8;
+    if (gap < 2) {
+        gap = 2;
+    }
+
+    int listTop = comboHeight + gap;
+    int listHeight = rcClient.Height() - listTop;
+    if (listHeight < 0) {
+        listHeight = 0;
+    }
+
+    m_CCombo.MoveWindow(0, 0, rcClient.Width(), comboHeight);
+    m_CList.MoveWindow(0, listTop, rcClient.Width(), listHeight);
+}
+
+
+void CCsendDlg::LoadNotificationSettings()
+{
+	TCHAR buf[64] = { 0 };
+	GetPrivateProfileString(_T("notification"), _T("toast"), _T("off"), buf, 64, m_iniPath);
+	m_bToastEnabled = IsSettingOn(buf);
+
+	m_tipTimeoutMs = GetPrivateProfileInt(_T("notification"), _T("tip_ms"), 3000, m_iniPath);
+	if (m_tipTimeoutMs == 0) {
+		m_tipTimeoutMs = 3000;
+	}
+}
+
+void CCsendDlg::ShowCopyFeedback(const CString& itemName)
+{
+	CString tipText = itemName;
+	if (!tipText.IsEmpty()) {
+		tipText += _T("\r\n");
+	}
+	tipText += _T("Copied to clipboard");
+
+	CPoint pt;
+	GetCursorPos(&pt);
+	m_tipWnd.ShowTip(tipText, m_tipTimeoutMs, pt);
+
+	if (m_bToastEnabled) {
+		ShowClipboardToast(itemName);
+	}
+}
+
 BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
 	//{{AFX_MSG_MAP(CCsendDlg)
 	ON_WM_SYSCOMMAND()		// システムメニュー等のメッセージを処理します
@@ -107,6 +297,17 @@ BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
  ON_CBN_SELCHANGE(IDC_COMBO_CATEGORY, &CCsendDlg::OnCbnSelchangeComboCategory)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
+
+BOOL CAboutDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	CString versionText;
+	versionText.Format(_T("C-Send Version %s"), CSEND_VERSION_TEXT);
+	SetDlgItemText(IDC_ABOUT_VERSION, versionText);
+
+	return TRUE;
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // CCsendDlg メッセージ ハンドラ
@@ -176,11 +377,14 @@ BOOL CCsendDlg::OnInitDialog()
 		m_listFont.DeleteObject();              // 既存フォントがあれば削除
 		m_listFont.CreateFontIndirect(&lf);     // メンバ変数に作成
 		m_CList.SetFont(&m_listFont);           // 有効なフォントを関連付け
+        m_CCombo.SetFont(&m_listFont);
 	}
 
 	CategoryUpdate();
 
 	UpdateList();
+    UpdateLayout();
+	LoadNotificationSettings();
 
 	// ツールが使いやすいように常に手前に表示します
 	SetWindowPos( &wndTopMost, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE );
@@ -279,22 +483,27 @@ void CCsendDlg::OnSelchangeClist()
 	if (i == LB_ERR) return;
 
 	CString text;
-	CString adds;
-	adds.LoadString(IDS_LISTADD);
 
 	// 1. まずインデックスがデータの範囲内かチェック
 	if (i < m_dataList.GetCount()) {
 		// 範囲内なら安全に .value を取得
 		text = m_dataList.Datas(i).value;
-		SendClipBoard(text);
+		if (SendClipBoard(text)) {
+			ShowCopyFeedback(m_dataList.Datas(i).name);
+		}
 
 		// キャプションには名前（name）を出した方が分かりやすいかも？
-		SetWindowText(m_dataList.Datas(i).name);
+		SetWindowText(MakeWindowTitle(m_dataList.Datas(i).name, m_bCurrentCategoryIsReadOnly));
 	}
 	else {
 		// 範囲外 ＝ リストの最後にある「(追加)」を選択したとみなす
 		text.LoadString(IDS_TITLE);
-		SetWindowText(text);
+		SetWindowText(MakeWindowTitle(text, m_bCurrentCategoryIsReadOnly));
+
+		// 通常ファイルでは「(追加)」を選んだらそのまま登録画面を開く
+		if (!m_bCurrentCategoryIsReadOnly) {
+			ChangeMessage();
+		}
 	}
 
 	if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
@@ -318,43 +527,49 @@ void CCsendDlg::OnSize(UINT nType, int cx, int cy)
 		GetWindowRect( &rect );		// 現在のウインドウのサイズを取得しておきます
 	}
 
-	m_CList.MoveWindow( 0, 30, cx, cy);	// リストのサイズをダイアログのクライアントサイズに変更します
-	m_CCombo.MoveWindow(0, 0, cx, 20);
+    UpdateLayout();
 // <--Make
 }
 
 // クリップボードに転送する関数です
 // Make-->
-void CCsendDlg::SendClipBoard( CString& text )
+BOOL CCsendDlg::SendClipBoard( CString& text )
 {
 	CString csMessage;	// エラーメッセージ表示用
 	if( !OpenClipboard() ){	// クリップボードのオープン
 		// 失敗した場合はメッセージを表示して処理を終了します
 		csMessage.LoadString( IDS_CBD_NOOPEN );
 		AfxMessageBox( csMessage );
-		return;
+		return FALSE;
 	}
 	if( !EmptyClipboard() ){	// クリップボードの内容を初期化します
 		// 失敗した場合はメッセージを表示して処理を終了します
 		csMessage.LoadString( IDS_CBD_NOEMPTY );
 		AfxMessageBox( csMessage );
 		CloseClipboard();
-		return;
+		return FALSE;
 	}
 
 	char* buff;	// クリップボードへ転送するための領域を作ります
 	// GlobalAllocを使い、GMEM_DDESHAREの属性で作成します
 	// ここで作ったメモリ領域はあとで解放する必要はありません
 	buff = (char*) GlobalAlloc( GMEM_DDESHARE, text.GetLength()+1 );
+	if (buff == NULL) {
+		CloseClipboard();
+		return FALSE;
+	}
 
-	lstrcpy( buff, (LPCTSTR)text );	// 作成した領域に文字列を転送します
+	lstrcpy( buff, (LPCTSTR)text );	// 作成した文字列を転送します
 
 	if ( ::SetClipboardData( CF_TEXT, (HANDLE)buff ) == NULL ){ // クリップボードに転送します
 		// 失敗した場合はメッセージを表示して処理を終了します
 		csMessage.LoadString( IDS_CBD_NOSEND );
 		AfxMessageBox( csMessage );
+		CloseClipboard();
+		return FALSE;
 	}
 	CloseClipboard();	// クリップボードを閉じます
+	return TRUE;
 }
 // <--Make
 
@@ -363,9 +578,23 @@ void CCsendDlg::OnDblclkClist()
 {
 	// TODO: この位置にコントロール通知ハンドラ用のコードを追加してください
 
-// Make-->
-	ChangeMessage();
-// <--Make
+	int i = m_CList.GetCurSel();
+	if( i < 0 || i >= m_dataList.GetCount() ){
+		return;
+	}
+
+	CInputBox cInput;
+	CString InputWindowName(_T("内容確認"));
+
+	cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value );
+	cInput.SetViewOnly( TRUE );
+	cInput.SetWindowName( InputWindowName );
+	cInput.DoModal();
+}
+
+BOOL CCsendDlg::ConfirmExit()
+{
+	return (MessageBox(_T("終了しますか？"), _T("確認"), MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES);
 }
 
 // ウインドウを閉じるときに呼ばれます
@@ -373,6 +602,9 @@ void CCsendDlg::OnClose()
 {
 	// TODO: この位置にメッセージ ハンドラ用のコードを追加するかまたはデフォルトの処理を呼び出してください
 // Make-->
+	if (!ConfirmExit()) {
+		return;
+	}
 	CDialog::OnOK();	// ウインドウを閉じます
 // <--Make
 }
@@ -486,6 +718,10 @@ void CCsendDlg::OnContextMenu(CWnd* pWnd, CPoint point)
 		return;
 	}
 
+	if (m_bCurrentCategoryIsReadOnly) {
+		return;
+	}
+
 	BOOL tmp;	// ItemFromPointの為の作業用変数です（今回は未使用）
 	m_CList.ScreenToClient( &point );	// 右クリックでリストの選択を行うため、座標を変換します
 	int nSelect = m_CList.ItemFromPoint( point, tmp );	// マウスカーソルの位置のリストを番号を返します
@@ -527,6 +763,10 @@ void CCsendDlg::OnContextMenu(CWnd* pWnd, CPoint point)
 // Make-->
 void CCsendDlg::DeleteString()
 {
+	if (m_bCurrentCategoryIsReadOnly) {
+		return;
+	}
+
 	int i = m_CList.GetCount();	// 現在のリストの数を数えます
 	if( i<1 ){	// リストに一つもなければ何もしません
 		return;
@@ -573,8 +813,6 @@ void CCsendDlg::DeleteString()
 	// 3. 表示を更新
 	UpdateList();
 }
-// <--Make
-
 
 // 登録メニューが選択され時に呼ばれます
 void CCsendDlg::OnAddstring() 
@@ -584,7 +822,6 @@ void CCsendDlg::OnAddstring()
 	ChangeMessage();
 // <--Make
 }
-
 // 変更メニューが選択されたときに呼ばれます
 void CCsendDlg::OnChange() 
 {
@@ -625,6 +862,10 @@ void CCsendDlg::OnCbnSelchangeComboCategory()
 // Make-->
 void CCsendDlg::ChangeMessage()
 {
+	if (m_bCurrentCategoryIsReadOnly) {
+		return;
+	}
+
 	CInputBox cInput;	// メッセージ編集用のダイアログ
 	
 	// 現在選択されている文字列を取得します
@@ -686,6 +927,9 @@ void CCsendDlg::OnExit()
 {
 	// TODO: この位置にコマンド ハンドラ用のコードを追加してください
 // Make 1.1-->
+	if (!ConfirmExit()) {
+		return;
+	}
 	CDialog::OnOK();	// ウインドウを閉じます
 // <--Make 1.1
 }
@@ -729,7 +973,7 @@ void CCsendDlg::SaveData()
 	int nSel = m_CCombo.GetCurSel();
 	if (nSel == CB_ERR) return;
 
-	if (!m_SavePath.IsEmpty()) {
+	if (!m_SavePath.IsEmpty() && !m_bCurrentCategoryIsReadOnly) {
 		// 構造化されたデータを一括保存
 		m_dataList.SaveAll(m_SavePath);
 	}
@@ -737,7 +981,13 @@ void CCsendDlg::SaveData()
 	// 終了時に選択中のカテゴリ名を保存（起動時に復元するため）
 	if (nSel != CB_ERR) {
 		CString selName;
-		m_CCombo.GetLBText(nSel, selName);
+		DWORD_PTR itemData = m_CCombo.GetItemData(nSel);
+		if (itemData != CB_ERR && itemData < (DWORD_PTR)m_categorys.GetCount()) {
+			selName = m_categorys.Datas((int)itemData).name;
+		}
+		else {
+			m_CCombo.GetLBText(nSel, selName);
+		}
 		WritePrivateProfileString(_T("category"), _T("last"), selName, m_iniPath);
 	}
 }
@@ -772,7 +1022,7 @@ CString CCsendDlg::Unescape(const CString& input)
 	// ② \, → ,
 	out.Replace(_T("\\,"), _T(","));
 
-	// ③ \\ → \
+    // 3) unescape backslashes
 	out.Replace(_T("\\\\"), _T("\\"));
 
 	return out;
@@ -790,7 +1040,10 @@ void CCsendDlg::CategoryUpdate()
 	m_categorys.LoadAll(m_iniPath);
 
 	for (int i = 0; i < m_categorys.GetCount(); i++) {
-		m_CCombo.AddString(m_categorys.Datas(i).name);
+		int pos = m_CCombo.AddString(MakeCategoryLabel(m_categorys.Datas(i).name, m_categorys.Datas(i).path));
+		if (pos != CB_ERR) {
+			m_CCombo.SetItemData(pos, i);
+		}
 	}
 
 	// 起動時に前回選択していたカテゴリを復元する
@@ -836,41 +1089,78 @@ void CCsendDlg::UpdateList() {
 	m_CList.SetRedraw(FALSE);
 
 	m_CList.ResetContent();
+	m_bCurrentCategoryIsReadOnly = FALSE;
 
 	int crrCatIndex = m_CCombo.GetCurSel();
-	if (crrCatIndex < 0) return;
+	if (crrCatIndex < 0) {
+		return;
+	}
 
 	// カテゴリーからファイル名を取得
 	CString fileName = m_categorys.Datas(crrCatIndex).path;
 
-	// 有効なパスを取得
-	CString targetPath = GetValidFilePath(fileName);
+	if (IsHttpUrl(fileName)) {
+		m_bCurrentCategoryIsReadOnly = TRUE;
+		CString tempPath;
+		if (DownloadUrlToTempFile(fileName, tempPath)) {
+			m_SavePath = fileName;
+			m_dataList.LoadAll(tempPath);
+			DeleteFile(tempPath);
+		}
+		else {
+			m_SavePath = fileName;
+			m_dataList.ClearAll();
+		}
+	}
+	else {
+		// 有効なパスを取得
+		CString targetPath = GetValidFilePath(fileName);
 
-	// パスが見つかった場合のみ読み込む
-	if (!targetPath.IsEmpty()) {
-		m_SavePath = targetPath;
-		m_dataList.LoadAll(targetPath);
+		// パスが見つかった場合のみ読み込む
+		if (!targetPath.IsEmpty()) {
+			m_SavePath = targetPath;
+			m_bCurrentCategoryIsReadOnly = IsReadOnlyFilePath(targetPath);
+			m_dataList.LoadAll(targetPath);
+		}
+		else {
+			// ファイルが見つからない場合でも、新規作成を許容するために m_SavePath を
+			// アプリケーションフォルダ下の候補パスとして設定する。
+			CString candidate = m_appPath + _T("\\") + fileName;
+			m_SavePath = candidate;
+			// ここではファイルの読み込みは行わない（LoadAll はファイル存在時のみ必要）。
+			m_dataList.ClearAll();
+		}
 	}
-    else {
-		// ファイルが見つからない場合でも、新規作成を許容するために m_SavePath を
-		// アプリケーションフォルダ下の候補パスとして設定する。
-		CString candidate = m_appPath + _T("\\") + fileName;
-		m_SavePath = candidate;
-		// ここではファイルの読み込みは行わない（LoadAll はファイル存在時のみ必要）。
-		m_dataList.ClearAll();
-	}
-    // (no further else) when file not found, m_SavePath is set to candidate above and list cleared
 
 	// 読み込んだデータを表示
 	for (int i = 0; i < m_dataList.GetCount(); i++) {
 		m_CList.AddString(m_dataList.Datas(i).name);
 	}
 
-	// 「(追加)」項目
-	CString adds;
-	adds.LoadString(IDS_LISTADD);
-	m_CList.AddString(adds);
+	CString windowTitle = m_categorys.Datas(crrCatIndex).name;
+	SetWindowText(MakeWindowTitle(windowTitle, m_bCurrentCategoryIsReadOnly));
+
+	// URL / 読み取り専用カテゴリは追加不可にする
+	if (!m_bCurrentCategoryIsReadOnly) {
+		CString adds;
+		adds.LoadString(IDS_LISTADD);
+		m_CList.AddString(adds);
+	}
 
 	m_CList.SetRedraw(TRUE);
 	m_CList.Invalidate();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

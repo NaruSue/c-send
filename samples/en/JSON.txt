@@ -1,0 +1,27 @@
+User Info
+0
+{"name":"Taro","email":"taro@example.com"}
+
+Settings
+0
+{"theme":"light","language":"en"}
+
+API Response
+0
+{"status":"ok","message":"success"}
+
+Array
+0
+["apple","orange","banana"]
+
+Empty Object
+0
+{}
+
+Empty Array
+0
+[]
+
+Permissions
+0
+{"read":true,"write":false}

@@ -1,0 +1,35 @@
+Git Status
+0
+git status
+
+Git Pull
+0
+git pull
+
+Git Add All
+0
+git add .
+
+Git Commit
+0
+git commit -m ""
+
+Git Push
+0
+git push
+
+Create Feature Branch
+0
+git checkout -b feature/
+
+Show Current Branches
+0
+git branch
+
+Show Changes
+0
+git diff
+
+Show Commit History
+0
+git log --oneline

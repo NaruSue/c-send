@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $text = Get-Content -Raw .\version.h
+          if ($text -notmatch '#define\s+CSEND_VERSION_MAJOR\s+(\d+)') { throw 'CSEND_VERSION_MAJOR not found.' }
+          $major = [int]$Matches[1]
+          if ($text -notmatch '#define\s+CSEND_VERSION_MINOR\s+(\d+)') { throw 'CSEND_VERSION_MINOR not found.' }
+          $minor = [int]$Matches[1]
+          if ($text -notmatch '#define\s+CSEND_VERSION_PATCH\s+(\d+)') { throw 'CSEND_VERSION_PATCH not found.' }
+          $patch = [int]$Matches[1]
+          if ($text -notmatch '#define\s+CSEND_VERSION_BUILD\s+(\d+)') { throw 'CSEND_VERSION_BUILD not found.' }
+          $build = [int]$Matches[1]
+          $versionText = "$major.$minor.$patch"
+          $fileVersion = "$major,$minor,$patch,$build"
+          "version_text=$versionText" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "file_version=$fileVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag_name=v$versionText" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "zip_name=c-send-$versionText.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Check tag does not exist
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.version.outputs.tag_name }}"
+          $exists = git ls-remote --tags origin "refs/tags/$tag"
+          if ($exists) {
+            throw "Tag already exists: $tag"
+          }
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          .\build.cmd Release
+
+      - name: Stage release files
+        id: stage
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "c-send-release"
+          if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item -LiteralPath ".\Release\x64\csend.exe" -Destination $stage
+          Copy-Item -LiteralPath ".\README.md" -Destination $stage
+          Copy-Item -LiteralPath ".\LICENSE" -Destination $stage
+          $zipPath = Join-Path $env:RUNNER_TEMP "${{ steps.version.outputs.zip_name }}"
+          if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -Force
+          "zip_path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create tag
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.version.outputs.tag_name }}"
+          git tag $tag
+          git push origin $tag
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: ${{ steps.version.outputs.tag_name }}
+          files: ${{ steps.stage.outputs.zip_path }}
+          generate_release_notes: true
