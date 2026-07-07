@@ -29,8 +29,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          clean: true
           fetch-depth: 0
-          ref: ${{ inputs.ref }}
+          ref: refs/heads/${{ inputs.ref }}
 
       - name: Show build target
         shell: pwsh

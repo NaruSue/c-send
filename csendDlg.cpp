@@ -832,7 +832,7 @@ CString CCsendDlg::Unescape(const CString& input)
 	// ‡A \, ¨ ,
 	out.Replace(_T("\\,"), _T(","));
 
-	// ‡B \\ ¨ \
+    // 3) unescape backslashes
 	out.Replace(_T("\\\\"), _T("\\"));
 
 	return out;

@@ -17,15 +17,15 @@ public:
     CCategoryDataList();
     ~CCategoryDataList();
 
-    // 主要機能
+    // Core operations
     void LoadAll(LPCTSTR iniPath);
     void SaveAll(LPCTSTR iniPath);
 
-    // データアクセス
+    // Data access
     CategoryData& Datas(int i);
     int GetCount() const;
 
-    // 並び替え補助（管理画面用）
+    // Reorder helpers (admin UI)
     void MoveUp(int i);
     void MoveDown(int i);
 
@@ -35,6 +35,6 @@ public:
         }
     }
 
-    // ???f?[?^?{?^?C?g
+    // Data operations
     void Add(CategoryData data);
 };
