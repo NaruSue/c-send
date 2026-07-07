@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "ToastNotificationHelper.h"
 
+#define _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
 #include <propkey.h>
 #include <propvarutil.h>
 #include <shlobj.h>
