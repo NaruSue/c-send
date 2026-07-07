@@ -89,6 +89,52 @@ void CCsendDlg::DoDataExchange(CDataExchange* pDX)
 	//}}AFX_DATA_MAP
 }
 
+void CCsendDlg::UpdateLayout()
+{
+    if (!::IsWindow(m_CList.m_hWnd) || !::IsWindow(m_CCombo.m_hWnd)) {
+        return;
+    }
+
+    CRect rcClient;
+    GetClientRect(&rcClient);
+
+    CFont* pFont = m_CCombo.GetFont();
+    if (pFont == NULL) {
+        pFont = m_CList.GetFont();
+    }
+    CClientDC dc(this);
+    CFont* pOldFont = NULL;
+    if (pFont != NULL) {
+        pOldFont = dc.SelectObject(pFont);
+    }
+
+    TEXTMETRIC tm{};
+    dc.GetTextMetrics(&tm);
+
+    if (pOldFont != NULL) {
+        dc.SelectObject(pOldFont);
+    }
+
+    int comboHeight = tm.tmHeight + tm.tmExternalLeading + 8;
+    if (comboHeight < 20) {
+        comboHeight = 20;
+    }
+
+    int gap = comboHeight / 8;
+    if (gap < 2) {
+        gap = 2;
+    }
+
+    int listTop = comboHeight + gap;
+    int listHeight = rcClient.Height() - listTop;
+    if (listHeight < 0) {
+        listHeight = 0;
+    }
+
+    m_CCombo.MoveWindow(0, 0, rcClient.Width(), comboHeight);
+    m_CList.MoveWindow(0, listTop, rcClient.Width(), listHeight);
+}
+
 BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
 	//{{AFX_MSG_MAP(CCsendDlg)
 	ON_WM_SYSCOMMAND()		// システムメニュー等のメッセージを処理します
@@ -189,11 +235,13 @@ BOOL CCsendDlg::OnInitDialog()
 		m_listFont.DeleteObject();              // 既存フォントがあれば削除
 		m_listFont.CreateFontIndirect(&lf);     // メンバ変数に作成
 		m_CList.SetFont(&m_listFont);           // 有効なフォントを関連付け
+        m_CCombo.SetFont(&m_listFont);
 	}
 
 	CategoryUpdate();
 
 	UpdateList();
+    UpdateLayout();
 
 	// ツールが使いやすいように常に手前に表示します
 	SetWindowPos( &wndTopMost, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE );
@@ -331,8 +379,7 @@ void CCsendDlg::OnSize(UINT nType, int cx, int cy)
 		GetWindowRect( &rect );		// 現在のウインドウのサイズを取得しておきます
 	}
 
-	m_CList.MoveWindow( 0, 30, cx, cy);	// リストのサイズをダイアログのクライアントサイズに変更します
-	m_CCombo.MoveWindow(0, 0, cx, 20);
+    UpdateLayout();
 // <--Make
 }
 

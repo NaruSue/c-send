@@ -19,6 +19,7 @@ public:
 	CString GetValidFilePath(CString fileName);
 	void CategoryUpdate();
 	void UpdateList();
+	void UpdateLayout();
 
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)
