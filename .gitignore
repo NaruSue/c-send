@@ -4,3 +4,4 @@ Release/
 x64/
 .tmp/
 .build.env
+AGENTS.md
