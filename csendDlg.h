@@ -31,7 +31,7 @@ public:
 	CListBox	m_CList;
 	CComboBox m_CCombo;
 	//}}AFX_DATA
-	CStatic	m_StatusText;
+	CEdit	m_StatusText;
 
 	// ClassWizard は仮想関数を生成しオーバーライドします。
 	//{{AFX_VIRTUAL(CCsendDlg)

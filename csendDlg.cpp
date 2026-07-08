@@ -129,10 +129,24 @@ static CString MakeCategoryLabel(const CString& name, const CString& path)
     return label;
 }
 
-static CString MakeListStatusMessage(const CString& categoryName, const CString& error)
+static CString MakeListStatusMessage(const CString& categoryName, const CString& pathText, const CString& error)
 {
     CString msg;
-    msg.Format(_T("%s\r\n%s"), categoryName, error);
+    if (!categoryName.IsEmpty()) {
+        msg += categoryName;
+    }
+    if (!pathText.IsEmpty()) {
+        if (!msg.IsEmpty()) {
+            msg += _T("\r\n");
+        }
+        msg += pathText;
+    }
+    if (!error.IsEmpty()) {
+        if (!msg.IsEmpty()) {
+            msg += _T("\r\n");
+        }
+        msg += error;
+    }
     return msg;
 }
 #ifdef _DEBUG
@@ -258,7 +272,60 @@ void CCsendDlg::UpdateLayout()
     m_CCombo.MoveWindow(0, 0, rcClient.Width(), comboHeight);
     m_CList.MoveWindow(0, listTop, rcClient.Width(), listHeight);
     if (::IsWindow(m_StatusText.m_hWnd)) {
-        m_StatusText.MoveWindow(0, listTop, rcClient.Width(), listHeight);
+        CRect rcStatus = rcClient;
+        rcStatus.top = listTop;
+        if (rcStatus.Height() > 0) {
+            rcStatus.DeflateRect(8, 8);
+        }
+        CString statusText;
+        m_StatusText.GetWindowText(statusText);
+
+        CClientDC dc(this);
+        CFont* pOldFont = NULL;
+        if (m_StatusText.GetFont() != NULL) {
+            pOldFont = dc.SelectObject(m_StatusText.GetFont());
+        }
+
+        TEXTMETRIC tm{};
+        dc.GetTextMetrics(&tm);
+
+        int maxWidth = 0;
+        int lineCount = 0;
+        int start = 0;
+        while (start <= statusText.GetLength()) {
+            int end = statusText.Find(_T("\n"), start);
+            CString line = (end >= 0) ? statusText.Mid(start, end - start) : statusText.Mid(start);
+            line.TrimRight(_T("\r"));
+            CSize sz = dc.GetTextExtent(line);
+            if (sz.cx > maxWidth) {
+                maxWidth = sz.cx;
+            }
+            ++lineCount;
+            if (end < 0) {
+                break;
+            }
+            start = end + 1;
+        }
+        if (lineCount < 1) {
+            lineCount = 1;
+        }
+
+        int textHeight = lineCount * (tm.tmHeight + tm.tmExternalLeading);
+        if (textHeight < tm.tmHeight) {
+            textHeight = tm.tmHeight;
+        }
+
+        m_StatusText.MoveWindow(&rcStatus);
+
+        CRect rcText;
+        m_StatusText.GetClientRect(&rcText);
+        int top = max(0, (rcText.Height() - textHeight) / 2);
+        rcText.DeflateRect(0, top, 0, 0);
+        m_StatusText.SendMessage(EM_SETRECT, 0, (LPARAM)(LPRECT)&rcText);
+
+        if (pOldFont != NULL) {
+            dc.SelectObject(pOldFont);
+        }
     }
 }
 
@@ -299,6 +366,7 @@ void CCsendDlg::ShowListStatus(const CString& message, BOOL isError)
 	if (::IsWindow(m_StatusText.m_hWnd)) {
 		m_StatusText.SetWindowText(message);
 		m_StatusText.ShowWindow(isError ? SW_SHOW : SW_HIDE);
+        UpdateLayout();
 	}
 
 	if (::IsWindow(m_CList.m_hWnd)) {
@@ -402,25 +470,22 @@ BOOL CCsendDlg::OnInitDialog()
 	MoveWindow(&rect);	// 取得した情報に従ってサイズと位置を変更します
 
 	if (m_fontSize > 0 && !m_fontName.IsEmpty()) {
-		LOGFONT lf{};
-		lf.lfHeight = -MulDiv(m_fontSize, GetDeviceCaps(::GetDC(NULL), LOGPIXELSY), 72);
-		_tcsncpy_s(lf.lfFaceName, m_fontName, LF_FACESIZE - 1);
-
-		m_listFont.DeleteObject();              // 既存フォントがあれば削除
-		m_listFont.CreateFontIndirect(&lf);     // メンバ変数に作成
-		m_CList.SetFont(&m_listFont);           // 有効なフォントを関連付け
-        m_CCombo.SetFont(&m_listFont);
+		if (CreateFontForSetting(m_listFont, m_fontName, m_fontSize)) {
+			m_CList.SetFont(&m_listFont);
+			m_CCombo.SetFont(&m_listFont);
+		}
 	}
 
 	CRect rcStatus;
 	m_CList.GetWindowRect(&rcStatus);
 	ScreenToClient(&rcStatus);
 	if (m_StatusText.GetSafeHwnd() == NULL) {
-		m_StatusText.Create(_T(""), WS_CHILD | SS_CENTER | SS_CENTERIMAGE | SS_NOPREFIX, rcStatus, this, 0x5001);
+			m_StatusText.Create(WS_CHILD | ES_MULTILINE | ES_READONLY | ES_CENTER, rcStatus, this, 0x5001);
 	}
 	if (m_listFont.GetSafeHandle() != NULL) {
 		m_StatusText.SetFont(&m_listFont);
 	}
+	m_StatusText.SetWindowText(_T(""));
 	m_StatusText.ShowWindow(SW_HIDE);
 
 	CategoryUpdate();
@@ -1146,6 +1211,7 @@ void CCsendDlg::UpdateList() {
 	CString categoryName = m_categorys.Datas(crrCatIndex).name;
 	CString fileName = m_categorys.Datas(crrCatIndex).path;
 	CString errorText;
+    CString errorPath;
 	BOOL loadError = FALSE;
 
 	if (IsHttpUrl(fileName)) {
@@ -1157,13 +1223,15 @@ void CCsendDlg::UpdateList() {
 			}
 			else {
 				loadError = TRUE;
-				m_SavePath.Empty();
+                m_SavePath.Empty();
+                errorPath = fileName;
 				m_dataList.ClearAll();
 			}
 			DeleteFile(tempPath);
 		}
 		else {
 			loadError = TRUE;
+                errorPath = fileName;
 			m_SavePath.Empty();
 			m_dataList.ClearAll();
 			errorText = GetIniMessage(_T(""), _T("url_read_failed"), _T("URLから読み込めませんでした。"));
@@ -1178,7 +1246,8 @@ void CCsendDlg::UpdateList() {
 			}
 			else {
 				loadError = TRUE;
-				m_SavePath.Empty();
+                m_SavePath.Empty();
+                errorPath = fileName;
 				m_bCurrentCategoryIsReadOnly = TRUE;
 				m_dataList.ClearAll();
 			}
@@ -1194,7 +1263,7 @@ void CCsendDlg::UpdateList() {
 		if (errorText.IsEmpty()) {
 			errorText = GetIniMessage(_T(""), _T("read_failed"), _T("読み込みできませんでした。"));
 		}
-		ShowListStatus(MakeListStatusMessage(categoryName, errorText), TRUE);
+        ShowListStatus(MakeListStatusMessage(categoryName, errorPath, errorText), TRUE);
 		SetWindowText(MakeWindowTitle(categoryName, TRUE));
 		m_CList.SetRedraw(TRUE);
 		m_CList.Invalidate();
