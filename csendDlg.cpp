@@ -10,6 +10,7 @@
 #include "InputBox.h"	// 文字列登録用ダイアログのヘッダファイル
 #include "categoryDlg.h"
 #include "ToastNotificationHelper.h"
+#include "IniTextUtil.h"
 #include <wininet.h>
 
 #pragma comment(lib, "wininet.lib")
@@ -81,8 +82,14 @@ static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
 	char buffer[4096];
 	DWORD bytesRead = 0;
 	BOOL ok = TRUE;
+	ULONGLONG totalBytes = 0;
 	while ((ok = InternetReadFile(hFile, buffer, sizeof(buffer), &bytesRead)) && bytesRead > 0) {
+		if (totalBytes + bytesRead > CDataValueList::MAX_FILE_BYTES) {
+			ok = FALSE;
+			break;
+		}
 		file.Write(buffer, bytesRead);
+		totalBytes += bytesRead;
 	}
 
 	InternetCloseHandle(hFile);
@@ -112,17 +119,22 @@ static CString MakeWindowTitle(const CString& base, BOOL isReadOnly)
 // <--Make
 static CString MakeCategoryLabel(const CString& name, const CString& path)
 {
-	CString label = name;
-	if (IsHttpUrl(path)) {
-		label += _T(" [URL]");
-	}
-	else if (IsReadOnlyFilePath(path)) {
-		label += _T(" [RO]");
-	}
-	return label;
+    CString label = name;
+    if (IsHttpUrl(path)) {
+        label += _T(" [URL]");
+    }
+    else if (IsReadOnlyFilePath(path)) {
+        label += _T(" [RO]");
+    }
+    return label;
 }
 
-
+static CString MakeListStatusMessage(const CString& categoryName, const CString& error)
+{
+    CString msg;
+    msg.Format(_T("%s\r\n%s"), categoryName, error);
+    return msg;
+}
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #undef THIS_FILE
@@ -245,6 +257,9 @@ void CCsendDlg::UpdateLayout()
 
     m_CCombo.MoveWindow(0, 0, rcClient.Width(), comboHeight);
     m_CList.MoveWindow(0, listTop, rcClient.Width(), listHeight);
+    if (::IsWindow(m_StatusText.m_hWnd)) {
+        m_StatusText.MoveWindow(0, listTop, rcClient.Width(), listHeight);
+    }
 }
 
 
@@ -274,6 +289,20 @@ void CCsendDlg::ShowCopyFeedback(const CString& itemName)
 
 	if (m_bToastEnabled) {
 		ShowClipboardToast(itemName);
+	}
+}
+void CCsendDlg::ShowListStatus(const CString& message, BOOL isError)
+{
+	m_statusMessage = message;
+	m_bStatusErrorMode = isError;
+
+	if (::IsWindow(m_StatusText.m_hWnd)) {
+		m_StatusText.SetWindowText(message);
+		m_StatusText.ShowWindow(isError ? SW_SHOW : SW_HIDE);
+	}
+
+	if (::IsWindow(m_CList.m_hWnd)) {
+		m_CList.ShowWindow(isError ? SW_HIDE : SW_SHOW);
 	}
 }
 
@@ -360,12 +389,15 @@ BOOL CCsendDlg::OnInitDialog()
 	m_appPath = szPath;
 	m_iniPath.Format(_T("%s\\setting.ini"), szPath);
 
+    EnsureDefaultIniMessages(m_iniPath);
+
+
 	TCHAR buffer[256];
 	GetPrivateProfileString(_T("font"), _T("name"), _T("MS UI Gothic"), buffer, 256, m_iniPath);
 	m_fontName = buffer;
 	m_fontSize = GetPrivateProfileInt(_T("font"), _T("size"), 16, m_iniPath);
 	GetPrivateProfileString(_T("Window"), _T("window"), _T("0000000001000100"), buffer, 256, m_iniPath);
-	sscanf(buffer, "%04X%04X%04X%04X", &rect.top, &rect.left,
+	_stscanf_s(buffer, _T("%04X%04X%04X%04X"), &rect.top, &rect.left,
 		&rect.bottom, &rect.right);
 	MoveWindow(&rect);	// 取得した情報に従ってサイズと位置を変更します
 
@@ -379,6 +411,17 @@ BOOL CCsendDlg::OnInitDialog()
 		m_CList.SetFont(&m_listFont);           // 有効なフォントを関連付け
         m_CCombo.SetFont(&m_listFont);
 	}
+
+	CRect rcStatus;
+	m_CList.GetWindowRect(&rcStatus);
+	ScreenToClient(&rcStatus);
+	if (m_StatusText.GetSafeHwnd() == NULL) {
+		m_StatusText.Create(_T(""), WS_CHILD | SS_CENTER | SS_CENTERIMAGE | SS_NOPREFIX, rcStatus, this, 0x5001);
+	}
+	if (m_listFont.GetSafeHandle() != NULL) {
+		m_StatusText.SetFont(&m_listFont);
+	}
+	m_StatusText.ShowWindow(SW_HIDE);
 
 	CategoryUpdate();
 
@@ -890,7 +933,10 @@ void CCsendDlg::ChangeMessage()
 		// 1. メモリ（m_dataList）を更新
 		if (flag) {
 			// 新規追加
-			m_dataList.Add(title, text);
+			if (!m_dataList.Add(title, text)) {
+			    AfxMessageBox(GetIniMessage(_T(""), _T("data_add_limit"), _T("データは100件までです。")));
+			    return;
+			}
 		}
 		else {
 			// 既存編集
@@ -1087,60 +1133,80 @@ CString CCsendDlg::GetValidFilePath(CString fileName) {
 
 void CCsendDlg::UpdateList() {
 	m_CList.SetRedraw(FALSE);
-
 	m_CList.ResetContent();
+	ShowListStatus(_T(""), FALSE);
 	m_bCurrentCategoryIsReadOnly = FALSE;
 
 	int crrCatIndex = m_CCombo.GetCurSel();
 	if (crrCatIndex < 0) {
+		m_CList.SetRedraw(TRUE);
 		return;
 	}
 
-	// カテゴリーからファイル名を取得
+	CString categoryName = m_categorys.Datas(crrCatIndex).name;
 	CString fileName = m_categorys.Datas(crrCatIndex).path;
+	CString errorText;
+	BOOL loadError = FALSE;
 
 	if (IsHttpUrl(fileName)) {
 		m_bCurrentCategoryIsReadOnly = TRUE;
 		CString tempPath;
 		if (DownloadUrlToTempFile(fileName, tempPath)) {
-			m_SavePath = fileName;
-			m_dataList.LoadAll(tempPath);
+			if (m_dataList.LoadAll(tempPath, &errorText)) {
+				m_SavePath = fileName;
+			}
+			else {
+				loadError = TRUE;
+				m_SavePath.Empty();
+				m_dataList.ClearAll();
+			}
 			DeleteFile(tempPath);
 		}
 		else {
-			m_SavePath = fileName;
+			loadError = TRUE;
+			m_SavePath.Empty();
 			m_dataList.ClearAll();
+			errorText = GetIniMessage(_T(""), _T("url_read_failed"), _T("URLから読み込めませんでした。"));
 		}
 	}
 	else {
-		// 有効なパスを取得
 		CString targetPath = GetValidFilePath(fileName);
-
-		// パスが見つかった場合のみ読み込む
 		if (!targetPath.IsEmpty()) {
-			m_SavePath = targetPath;
-			m_bCurrentCategoryIsReadOnly = IsReadOnlyFilePath(targetPath);
-			m_dataList.LoadAll(targetPath);
+			if (m_dataList.LoadAll(targetPath, &errorText)) {
+				m_SavePath = targetPath;
+				m_bCurrentCategoryIsReadOnly = IsReadOnlyFilePath(targetPath);
+			}
+			else {
+				loadError = TRUE;
+				m_SavePath.Empty();
+				m_bCurrentCategoryIsReadOnly = TRUE;
+				m_dataList.ClearAll();
+			}
 		}
 		else {
-			// ファイルが見つからない場合でも、新規作成を許容するために m_SavePath を
-			// アプリケーションフォルダ下の候補パスとして設定する。
 			CString candidate = m_appPath + _T("\\") + fileName;
 			m_SavePath = candidate;
-			// ここではファイルの読み込みは行わない（LoadAll はファイル存在時のみ必要）。
 			m_dataList.ClearAll();
 		}
 	}
 
-	// 読み込んだデータを表示
+	if (loadError) {
+		if (errorText.IsEmpty()) {
+			errorText = GetIniMessage(_T(""), _T("read_failed"), _T("読み込みできませんでした。"));
+		}
+		ShowListStatus(MakeListStatusMessage(categoryName, errorText), TRUE);
+		SetWindowText(MakeWindowTitle(categoryName, TRUE));
+		m_CList.SetRedraw(TRUE);
+		m_CList.Invalidate();
+		return;
+	}
+
 	for (int i = 0; i < m_dataList.GetCount(); i++) {
 		m_CList.AddString(m_dataList.Datas(i).name);
 	}
 
-	CString windowTitle = m_categorys.Datas(crrCatIndex).name;
-	SetWindowText(MakeWindowTitle(windowTitle, m_bCurrentCategoryIsReadOnly));
+	SetWindowText(MakeWindowTitle(categoryName, m_bCurrentCategoryIsReadOnly));
 
-	// URL / 読み取り専用カテゴリは追加不可にする
 	if (!m_bCurrentCategoryIsReadOnly) {
 		CString adds;
 		adds.LoadString(IDS_LISTADD);

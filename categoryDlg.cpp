@@ -6,6 +6,8 @@
 #include "afxdialogex.h"
 #include "categoryDlg.h"
 #include "CategoryDataList.h"
+#include "DialogFontUtil.h"
+#include "IniTextUtil.h"
 #include <wininet.h>
 
 #pragma comment(lib, "wininet.lib")
@@ -58,6 +60,55 @@ categoryDlg::~categoryDlg()
 {
 }
 
+
+void categoryDlg::ApplyFontAndLayout()
+{
+	CString fontName;
+	int fontSize = 0;
+	LoadFontSetting(m_iniPath, fontName, fontSize);
+
+	if (!CreateFontForSetting(m_dialogFont, fontName, fontSize)) {
+		return;
+	}
+
+	SetFont(&m_dialogFont);
+	m_ListCategory.SetFont(&m_dialogFont);
+	m_c_catName.SetFont(&m_dialogFont);
+	m_c_catPath.SetFont(&m_dialogFont);
+
+	CWnd* pOK = GetDlgItem(IDOK);
+	if (pOK != NULL) {
+		pOK->SetFont(&m_dialogFont);
+	}
+	CWnd* pCancel = GetDlgItem(IDCANCEL);
+	if (pCancel != NULL) {
+		pCancel->SetFont(&m_dialogFont);
+	}
+	CWnd* pSave = GetDlgItem(IDC_BUTTON_CAT_SAVE);
+	if (pSave != NULL) {
+		pSave->SetFont(&m_dialogFont);
+	}
+	CWnd* pDel = GetDlgItem(IDC_BUTTON_CAT_DEL);
+	if (pDel != NULL) {
+		pDel->SetFont(&m_dialogFont);
+	}
+	CWnd* pUp = GetDlgItem(IDC_BUTTON_CAT_UP);
+	if (pUp != NULL) {
+		pUp->SetFont(&m_dialogFont);
+	}
+	CWnd* pDown = GetDlgItem(IDC_BUTTON_CAT_DOWN);
+	if (pDown != NULL) {
+		pDown->SetFont(&m_dialogFont);
+	}
+
+	const double scale = (fontSize > 0) ? ((double)fontSize / 8.0) : 1.0;
+	if (scale != 1.0) {
+		const UINT ids[] = { IDC_LIST_CATEGORY, IDC_EDIT_CAT_NAME, IDC_EDIT_CAT_PATH, IDOK, IDCANCEL,
+			IDC_BUTTON_CAT_SAVE, IDC_BUTTON_CAT_DEL, IDC_BUTTON_CAT_UP, IDC_BUTTON_CAT_DOWN };
+		ApplyScaledLayout(this, scale, scale, ids, _countof(ids));
+	}
+}
+
 void categoryDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
@@ -83,6 +134,12 @@ END_MESSAGE_MAP()
 BOOL categoryDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog(); // 親クラスの呼び出し（必須！）
+
+	if (m_iniPath.IsEmpty()) {
+		m_iniPath = GetSettingIniPathFromExe();
+	}
+
+	ApplyFontAndLayout();
 
 	m_catList.LoadAll(m_iniPath);
 
@@ -342,7 +399,7 @@ void categoryDlg::OnBnClickedButtonCatSave()
 	}
 
 	if (IsHttpUrl(m_strPath) && !ValidateUrlSource(m_strPath)) {
-		AfxMessageBox(_T("URL から読み込めませんでした。"));
+		AfxMessageBox(GetIniMessage(_T(""), _T("url_read_failed"), _T("URLから読み込めませんでした。")));
 		return;
 	}
 
@@ -373,6 +430,7 @@ void categoryDlg::OnBnClickedButtonCatSave()
 		UpdateData(FALSE);
 	}
 }
+
 
 
 

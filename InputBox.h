@@ -35,11 +35,14 @@ protected:
 	//{{AFX_MSG(CInputBox)
 	virtual BOOL OnInitDialog();
 	virtual void OnOK();
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	//}}AFX_MSG
+	void ApplyFontAndLayout();
 	DECLARE_MESSAGE_MAP()
 private:
 	CString m_InputText;
 	CString m_InputTitle;
 	CString m_WindowName;
+	CFont m_dialogFont;
 	BOOL m_bViewOnly;
 };

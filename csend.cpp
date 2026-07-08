@@ -47,13 +47,11 @@ BOOL CCsendApp::InitInstance()
 
 #ifdef _AFXDLL
 	Enable3dControls();			// 共有 DLL 内で MFC を使う場合はここをコールしてください。
-#else
-	Enable3dControlsStatic();	// MFC と静的にリンクする場合はここをコールしてください。
 #endif
 
 	CCsendDlg dlg;
 	m_pMainWnd = &dlg;
-	int nResponse = dlg.DoModal();
+	INT_PTR nResponse = dlg.DoModal();
 	if (nResponse == IDOK)
 	{
 		// TODO: ダイアログが <OK> で消された時のコードを

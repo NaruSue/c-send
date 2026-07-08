@@ -1,7 +1,6 @@
 #pragma once
 #include <afxtempl.h>
 
-// ƒf[ƒ^‚ÌŠí
 struct ItemData {
     CString name;
     CString value;
@@ -15,35 +14,35 @@ private:
     CArray<ItemData, ItemData&> m_arr;
 
 public:
+    enum { MAX_ITEMS = 100, MAX_FILE_BYTES = 10 * 1024 * 1024 };
+
     CDataValueList();
     ~CDataValueList();
 
-    // Core operations
-    void LoadAll(CString txtPath);
+    bool LoadAll(CString txtPath, CString* pError = NULL);
     void SaveAll(CString txtPath);
 
-    // Data access
     ItemData& Datas(int i);
     int GetCount() const;
 
-    // Reorder helpers (admin UI)
     void MoveUp(int i);
     void MoveDown(int i);
     void ClearAll() { m_arr.RemoveAll(); }
 
-    // Added inside the public section of CDataValueList
-    void Add(CString name, CString value) {
+    bool Add(CString name, CString value) {
+        if (m_arr.GetSize() >= MAX_ITEMS) {
+            return false;
+        }
         ItemData data;
         data.name = name;
         data.value = value;
         m_arr.Add(data);
+        return true;
     }
 
-    // Remove data at the specified index
     void Remove(int i) {
         if (i >= 0 && i < m_arr.GetSize()) {
             m_arr.RemoveAt(i);
         }
     }
 };
-

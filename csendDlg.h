@@ -23,6 +23,7 @@ public:
 	void UpdateLayout();
 	void LoadNotificationSettings();
 	void ShowCopyFeedback(const CString& itemName);
+	void ShowListStatus(const CString& message, BOOL isError);
 
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)
@@ -30,6 +31,7 @@ public:
 	CListBox	m_CList;
 	CComboBox m_CCombo;
 	//}}AFX_DATA
+	CStatic	m_StatusText;
 
 	// ClassWizard は仮想関数を生成しオーバーライドします。
 	//{{AFX_VIRTUAL(CCsendDlg)
@@ -89,6 +91,8 @@ private:
 	BOOL m_bToastEnabled = FALSE;
 	UINT m_tipTimeoutMs = 3000;
 	CClipboardTipWnd m_tipWnd;
+	CString m_statusMessage;
+	BOOL m_bStatusErrorMode = FALSE;
 };
 
 
