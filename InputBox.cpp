@@ -89,7 +89,12 @@ void CInputBox::ApplyFontAndLayout()
 		pCancel->SetFont(&m_dialogFont);
 	}
 
-	const double scale = (fontSize > 0) ? ((double)fontSize / 18.0) : 1.0;
+	double scale = (fontSize > 0) ? ((double)fontSize / 18.0) : 1.0;
+	if (scale < 1.0) {
+		// 既定テンプレートより小さいフォントでは、レイアウトまで縮めると
+		// ボタンやスクロールバーが枠外に押し出されるので縮小しない。
+		scale = 1.0;
+	}
 	if (scale != 1.0) {
 		const UINT ids[] = { IDC_EDIT1, IDC_EDIT2, IDOK, IDCANCEL };
 		ApplyScaledLayout(this, scale, scale, ids, _countof(ids));

@@ -94,8 +94,16 @@ inline void ApplyScaledLayout(CWnd* pWnd, double sx, double sy, const UINT* ids,
 	}
 
 	CRect rcWnd;
+	CRect rcClient;
 	pWnd->GetWindowRect(&rcWnd);
-	pWnd->SetWindowPos(NULL, 0, 0, ScaleInt(rcWnd.Width(), sx), ScaleInt(rcWnd.Height(), sy),
+	pWnd->GetClientRect(&rcClient);
+
+	const int frameWidth = rcWnd.Width() - rcClient.Width();
+	const int frameHeight = rcWnd.Height() - rcClient.Height();
+	const int newClientWidth = ScaleInt(rcClient.Width(), sx);
+	const int newClientHeight = ScaleInt(rcClient.Height(), sy);
+
+	pWnd->SetWindowPos(NULL, 0, 0, newClientWidth + frameWidth, newClientHeight + frameHeight,
 		SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
 	for (int i = 0; i < count; i++) {
