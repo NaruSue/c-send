@@ -46,6 +46,27 @@ static bool ValidateUrlSource(const CString& url)
 	InternetCloseHandle(hSession);
 	return ok != FALSE;
 }
+
+static bool IsReadOnlyFilePath(const CString& path)
+{
+	DWORD attr = GetFileAttributes(path);
+	if (attr == INVALID_FILE_ATTRIBUTES) {
+		return false;
+	}
+	return (attr & FILE_ATTRIBUTE_READONLY) != 0;
+}
+
+static CString MakeCategoryLabel(const CString& name, const CString& path)
+{
+	CString label = name;
+	if (IsHttpUrl(path)) {
+		label += _T(" [URL]");
+	}
+	else if (IsReadOnlyFilePath(path)) {
+		label += _T(" [RO]");
+	}
+	return label;
+}
 // categoryDlg ダイアログ
 
 IMPLEMENT_DYNAMIC(categoryDlg, CDialogEx)
@@ -140,6 +161,7 @@ BOOL categoryDlg::OnInitDialog()
 	}
 
 	ApplyFontAndLayout();
+	SetWindowText(_T("カテゴリ設定"));
 
 	m_catList.LoadAll(m_iniPath);
 
@@ -156,7 +178,7 @@ void categoryDlg::UpdateCategoryList() {
     int count = m_catList.GetCount();
 	if (count > 0) {
 		for (int i = 0; i < count; i++) {
-            int pos = m_ListCategory.AddString(m_catList.Datas(i).name);
+            int pos = m_ListCategory.AddString(MakeCategoryLabel(m_catList.Datas(i).name, m_catList.Datas(i).path));
 			m_ListCategory.SetItemData(pos, i); // store original index to avoid issues if control is sorted
 		}
 	}
@@ -183,8 +205,35 @@ int categoryDlg::FindListPosByIndex(int idx) {
 	return LB_ERR;
 }
 
-// Select by internal index (sets listbox selection and m_currentIndex and edit fields)
-void categoryDlg::SelectByIndex(int idx) {
+
+int categoryDlg::ResolveSelectedIndex(int sel) const
+{
+	if (sel == LB_ERR) {
+		return -1;
+	}
+
+	DWORD_PTR data = m_ListCategory.GetItemData(sel);
+	if (data == (DWORD_PTR)-2) {
+		return -1;
+	}
+
+	if (data != LB_ERR) {
+		int idx = (int)data;
+		if (idx >= 0 && idx < m_catList.GetCount()) {
+			return idx;
+		}
+		return -1;
+	}
+
+	if (sel >= 0 && sel < m_catList.GetCount()) {
+		return sel;
+	}
+
+	return -1;
+}
+
+void categoryDlg::ApplySelectionIndex(int idx)
+{
 	if (idx < 0 || idx >= m_catList.GetCount()) {
 		m_ListCategory.SetCurSel(LB_ERR);
 		m_currentIndex = -1;
@@ -193,10 +242,10 @@ void categoryDlg::SelectByIndex(int idx) {
 		UpdateData(FALSE);
 		return;
 	}
+
 	int pos = FindListPosByIndex(idx);
 	if (pos == LB_ERR) {
-		// Fallback: try to select by idx position
-        if (idx < m_ListCategory.GetCount()) {
+		if (idx < m_ListCategory.GetCount()) {
 			m_ListCategory.SetCurSel(idx);
 		}
 		else if (m_ListCategory.GetCount() > 0) {
@@ -209,27 +258,23 @@ void categoryDlg::SelectByIndex(int idx) {
 	else {
 		m_ListCategory.SetCurSel(pos);
 	}
+
 	m_currentIndex = idx;
 	m_strName = m_catList.Datas(idx).name;
 	m_strPath = m_catList.Datas(idx).path;
 	UpdateData(FALSE);
 }
 
+// Select by internal index (sets listbox selection and m_currentIndex and edit fields)
+void categoryDlg::SelectByIndex(int idx) {
+	ApplySelectionIndex(idx);
+}
+
 void categoryDlg::SyncCurrentSelection()
 {
-	if (m_currentIndex >= 0 && m_currentIndex < m_catList.GetCount()) {
-		m_ListCategory.SetCurSel(m_currentIndex);
-		m_strName = m_catList.Datas(m_currentIndex).name;
-		m_strPath = m_catList.Datas(m_currentIndex).path;
-	}
-	else {
-		m_ListCategory.SetCurSel(LB_ERR);
-		m_currentIndex = -1;
-		m_strName.Empty();
-		m_strPath.Empty();
-	}
-	UpdateData(FALSE);
+	ApplySelectionIndex(m_currentIndex);
 }
+
 
 
 // categoryDlg メッセージ ハンドラー
@@ -253,47 +298,49 @@ void categoryDlg::OnBnClickedCancel()
 
 void categoryDlg::OnBnClickedButtonCatUp()
 {
-    // 上へ移動
+	// 上へ移動
 	int count = m_catList.GetCount();
 	if (m_currentIndex <= 0 || m_currentIndex >= count) {
 		// 先頭または未選択なら何もしない
 		return;
 	}
 
-	m_catList.MoveUp(m_currentIndex);
+	int selectedIndex = m_currentIndex;
+	m_catList.MoveUp(selectedIndex);
 	m_catList.SaveAll(m_iniPath);
 
 	// リストを再表示して選択を移動
-    UpdateCategoryList();
-	int newIndex = m_currentIndex - 1;
-	if (newIndex < 0) newIndex = 0;
+	UpdateCategoryList();
+	selectedIndex--;
+	if (selectedIndex < 0) selectedIndex = 0;
 	// select by internal index so the displayed cursor stays near moved item
-	SelectByIndex(newIndex);
+	ApplySelectionIndex(selectedIndex);
 }
 
 void categoryDlg::OnBnClickedButtonCatDown()
 {
-    // 下へ移動
+	// 下へ移動
 	int count = m_catList.GetCount();
 	if (m_currentIndex < 0 || m_currentIndex >= count - 1) {
 		// 末尾または未選択なら何もしない
 		return;
 	}
 
-	m_catList.MoveDown(m_currentIndex);
+	int selectedIndex = m_currentIndex;
+	m_catList.MoveDown(selectedIndex);
 	m_catList.SaveAll(m_iniPath);
 
 	// リストを再表示して選択を移動
-    UpdateCategoryList();
-	int newIndex = m_currentIndex + 1;
-	if (newIndex >= m_catList.GetCount()) newIndex = m_catList.GetCount() - 1;
+	UpdateCategoryList();
+	selectedIndex++;
+	if (selectedIndex >= m_catList.GetCount()) selectedIndex = m_catList.GetCount() - 1;
 	// select by internal index so the displayed cursor stays near moved item
-	SelectByIndex(newIndex);
+	ApplySelectionIndex(selectedIndex);
 }
 
 void categoryDlg::OnBnClickedButtonCatDel()
 {
-    // 削除処理：物理ファイルは削除せず、INI とリストから削除する
+	// 削除処理：物理ファイルは削除せず、INI とリストから削除する
 	// m_currentIndex が選択されていない（追加行など）の場合は何もしない
 	if (m_currentIndex < 0) {
 		CString msg;
@@ -302,15 +349,17 @@ void categoryDlg::OnBnClickedButtonCatDel()
 		return;
 	}
 
+	int selectedIndex = m_currentIndex;
+
 	// 確認ダイアログ
 	CString confirm;
-	confirm.Format(_T("Delete category '%s'?"), m_catList.Datas(m_currentIndex).name);
+	confirm.Format(_T("Delete category '%s'?"), m_catList.Datas(selectedIndex).name);
 	if (MessageBox(confirm, _T("Confirm"), MB_ICONQUESTION | MB_OKCANCEL | MB_DEFBUTTON2) == IDCANCEL) {
 		return;
 	}
 
 	// メモリから削除して INI に保存
-	m_catList.Remove(m_currentIndex);
+	m_catList.Remove(selectedIndex);
 	m_catList.SaveAll(m_iniPath);
 
 	// リスト再表示
@@ -318,63 +367,19 @@ void categoryDlg::OnBnClickedButtonCatDel()
 
 	// 選択の調整: 削除した位置が存在すれば同じインデックスを、そうでなければ最後の要素を選択
 	if (m_catList.GetCount() <= 0) {
-		m_currentIndex = -1;
+		selectedIndex = -1;
 	}
-	else if (m_currentIndex >= m_catList.GetCount()) {
-		m_currentIndex = m_catList.GetCount() - 1;
+	else if (selectedIndex >= m_catList.GetCount()) {
+		selectedIndex = m_catList.GetCount() - 1;
 	}
 
-	SyncCurrentSelection();
+	ApplySelectionIndex(selectedIndex);
 }
 
 void categoryDlg::OnLbnSelchangeListCategory()
 {
 	// TODO: ここにコントロール通知ハンドラー コードを追加します。
-    int sel = m_ListCategory.GetCurSel();
-	if (sel == LB_ERR) {
-		m_strName.Empty();
-		m_strPath.Empty();
-		m_currentIndex = -1;
-	}
-	else {
-     // Use item data mapping to get the real index in m_catList
-		DWORD_PTR data = m_ListCategory.GetItemData(sel);
-		if (data == (DWORD_PTR)-2) {
-			// this is the "add" sentinel
-			m_strName.Empty();
-			m_strPath.Empty();
-			m_currentIndex = -1;
-		}
-		else if (data == LB_ERR) {
-			// fallback: treat sel as index
-			if (sel >= m_catList.GetCount()) {
-				m_strName.Empty();
-				m_strPath.Empty();
-				m_currentIndex = -1;
-			}
-			else {
-				m_strName = m_catList.Datas(sel).name;
-				m_strPath = m_catList.Datas(sel).path;
-				m_currentIndex = sel;
-			}
-		}
-		else {
-			int idx = (int)data;
-			if (idx >= 0 && idx < m_catList.GetCount()) {
-				m_strName = m_catList.Datas(idx).name;
-				m_strPath = m_catList.Datas(idx).path;
-				m_currentIndex = idx;
-			}
-			else {
-				m_strName.Empty();
-				m_strPath.Empty();
-				m_currentIndex = -1;
-			}
-		}
-	}
-
-	UpdateData(FALSE);
-
+	ApplySelectionIndex(ResolveSelectedIndex(m_ListCategory.GetCurSel()));
 }
 
 void categoryDlg::OnBnClickedButtonCatSave()
@@ -412,7 +417,9 @@ void categoryDlg::OnBnClickedButtonCatSave()
 		return;
 	}
 
- if (m_currentIndex < 0) {	// 新規追加
+	int selectedIndex = m_currentIndex;
+
+	if (selectedIndex < 0) {    // 新規追加
 		CategoryData data;
 		data.name = m_strName;
 		data.path = m_strPath;
@@ -420,26 +427,16 @@ void categoryDlg::OnBnClickedButtonCatSave()
 		m_catList.SaveAll(m_iniPath);
 		// リスト再表示
 		UpdateCategoryList();
-		// 選択を新しく追加した最後のアイテムにする
-		int newIndex = m_catList.GetCount() - 1;
-		if (newIndex >= 0) {
-			m_ListCategory.SetCurSel(newIndex);
-			m_currentIndex = newIndex;
-		}
-		UpdateData(FALSE);
+		selectedIndex = m_catList.GetCount() - 1;
 	}
-	else {	// 既存の変更
-		m_catList.Datas(m_currentIndex).name = m_strName;
-		m_catList.Datas(m_currentIndex).path = m_strPath;
+	else {    // 既存の変更
+		m_catList.Datas(selectedIndex).name = m_strName;
+		m_catList.Datas(selectedIndex).path = m_strPath;
 		m_catList.SaveAll(m_iniPath);
+		// リスト再表示
 		UpdateCategoryList();
-		if (m_currentIndex >= 0 && m_currentIndex < m_ListCategory.GetCount()) {
-			m_ListCategory.SetCurSel(m_currentIndex);
-		}
-		UpdateData(FALSE);
 	}
+
+	ApplySelectionIndex(selectedIndex);
 }
-
-
-
 

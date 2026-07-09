@@ -30,6 +30,8 @@ private:
 
 	// ヘルパ: 表示位置から内部インデックスを探す／内部インデックスで選択する
 	int FindListPosByIndex(int idx);
+	int ResolveSelectedIndex(int sel) const;
+	void ApplySelectionIndex(int idx);
 	void SelectByIndex(int idx);
 	void SyncCurrentSelection();
 
