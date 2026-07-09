@@ -215,6 +215,23 @@ void categoryDlg::SelectByIndex(int idx) {
 	UpdateData(FALSE);
 }
 
+void categoryDlg::SyncCurrentSelection()
+{
+	if (m_currentIndex >= 0 && m_currentIndex < m_catList.GetCount()) {
+		m_ListCategory.SetCurSel(m_currentIndex);
+		m_strName = m_catList.Datas(m_currentIndex).name;
+		m_strPath = m_catList.Datas(m_currentIndex).path;
+	}
+	else {
+		m_ListCategory.SetCurSel(LB_ERR);
+		m_currentIndex = -1;
+		m_strName.Empty();
+		m_strPath.Empty();
+	}
+	UpdateData(FALSE);
+}
+
+
 // categoryDlg メッセージ ハンドラー
 
 void categoryDlg::OnBnClickedOk()
@@ -300,22 +317,14 @@ void categoryDlg::OnBnClickedButtonCatDel()
 	UpdateCategoryList();
 
 	// 選択の調整: 削除した位置が存在すれば同じインデックスを、そうでなければ最後の要素を選択
-	int count = m_catList.GetCount();
-	if (count > 0) {
-		int newIndex = m_currentIndex;
-		if (newIndex >= count) newIndex = count - 1;
-		m_ListCategory.SetCurSel(newIndex);
-		m_currentIndex = newIndex;
-		m_strName = m_catList.Datas(newIndex).name;
-		m_strPath = m_catList.Datas(newIndex).path;
-	}
-	else {
+	if (m_catList.GetCount() <= 0) {
 		m_currentIndex = -1;
-		m_strName.Empty();
-		m_strPath.Empty();
+	}
+	else if (m_currentIndex >= m_catList.GetCount()) {
+		m_currentIndex = m_catList.GetCount() - 1;
 	}
 
-	UpdateData(FALSE);
+	SyncCurrentSelection();
 }
 
 void categoryDlg::OnLbnSelchangeListCategory()

@@ -24,6 +24,9 @@ public:
 	void LoadNotificationSettings();
 	void ShowCopyFeedback(const CString& itemName);
 	void ShowListStatus(const CString& message, BOOL isError);
+	void RestoreMainWindow();
+	void BuildTrayMenu(CMenu& menu);
+	void BuildListContextMenu(CMenu& menu);
 
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)

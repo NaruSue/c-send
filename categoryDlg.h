@@ -31,6 +31,7 @@ private:
 	// ヘルパ: 表示位置から内部インデックスを探す／内部インデックスで選択する
 	int FindListPosByIndex(int idx);
 	void SelectByIndex(int idx);
+	void SyncCurrentSelection();
 
 	// ダイアログ データ
 #ifdef AFX_DESIGN_TIME
