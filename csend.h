@@ -17,11 +17,16 @@ class CCsendApp : public CWinApp
 public:
 	CCsendApp();
 
+	BOOL RegisterMainWindow(HWND hWnd);
+	void UnregisterMainWindow();
+	BOOL RestoreExistingInstance();
+
 // オーバーライド
 	// ClassWizard は仮想関数を生成しオーバーライドします。
 	//{{AFX_VIRTUAL(CCsendApp)
 	public:
 	virtual BOOL InitInstance();
+	virtual int ExitInstance();
 	//}}AFX_VIRTUAL
 
 // インプリメンテーション
@@ -31,8 +36,14 @@ public:
 		//        この位置に生成されるコードを編集しないでください。
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
+
+private:
+	HANDLE m_hSingleInstanceMutex = NULL;
+	HANDLE m_hMainWindowMapping = NULL;
+	HWND* m_pSharedMainWnd = NULL;
 };
 
 
 /////////////////////////////////////////////////////////////////////////////
+
 
