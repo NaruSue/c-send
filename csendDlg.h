@@ -23,6 +23,10 @@ public:
 	void UpdateLayout();
 	void LoadNotificationSettings();
 	void ShowCopyFeedback(const CString& itemName);
+	void ShowListStatus(const CString& message, BOOL isError);
+	void RestoreMainWindow();
+	void BuildTrayMenu(CMenu& menu);
+	void BuildListContextMenu(CMenu& menu);
 
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)
@@ -30,6 +34,7 @@ public:
 	CListBox	m_CList;
 	CComboBox m_CCombo;
 	//}}AFX_DATA
+	CEdit	m_StatusText;
 
 	// ClassWizard は仮想関数を生成しオーバーライドします。
 	//{{AFX_VIRTUAL(CCsendDlg)
@@ -41,6 +46,7 @@ public:
 protected:
 	void ChangeMessage( void );
 	void DeleteString(void);
+	void ActivateListItem(int index);
 	BOOL SendClipBoard( CString& text );
 	BOOL ConfirmExit();
 	HICON m_hIcon;
@@ -77,10 +83,15 @@ protected:
 	afx_msg void OnDeletestring();
 	afx_msg void OnAbout();
 	afx_msg void OnExit();
+	afx_msg void OnTrayItemSelect(UINT nID);
  afx_msg void OnCbnSelchangeComboCategory();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 private:
+	enum {
+		ID_TRAY_ITEM_BASE = 40000,
+		ID_TRAY_ITEM_MAX = ID_TRAY_ITEM_BASE + 99
+	};
 	NOTIFYICONDATA m_stNtfyIcon;
 	RECT rect;
 	CString m_SelText;
@@ -89,6 +100,8 @@ private:
 	BOOL m_bToastEnabled = FALSE;
 	UINT m_tipTimeoutMs = 3000;
 	CClipboardTipWnd m_tipWnd;
+	CString m_statusMessage;
+	BOOL m_bStatusErrorMode = FALSE;
 };
 
 

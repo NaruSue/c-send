@@ -49,6 +49,13 @@ version.h をバージョン管理の正本とする。
 5. GitHub Release 作成
 6. ZIP添付
 
+ZIP に含める主なファイル:
+
+- `csend.exe`
+- `README.md`
+- `LICENSE`
+- `docs/usage.md`
+
 ## 命名規則
 
 タグ:

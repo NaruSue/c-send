@@ -1,15 +1,34 @@
 #include "stdafx.h"
 #include "DataValueList.h"
+#include "IniTextUtil.h"
 
-// helper: escape/unescape value strings for single-line storage
-static CString EscapeValueForStorage(const CString& input) {
+static bool TryParseStrictInt(const CString& text, int& value)
+{
+    CString s(text);
+    s.Trim();
+    if (s.IsEmpty()) {
+        return false;
+    }
+
+    TCHAR* end = NULL;
+    long parsed = _tcstol(s, &end, 10);
+    if (end == s.GetString() || *end != _T('\0')) {
+        return false;
+    }
+
+    value = (int)parsed;
+    return true;
+}
+
+static CString EscapeValueForStorage(const CString& input)
+{
     CString out;
     out.Preallocate(input.GetLength() * 2 + 4);
     for (int i = 0; i < input.GetLength(); ++i) {
         TCHAR c = input[i];
         switch (c) {
         case '\\':
-            out += _T("\\\\"); // store single backslash as double backslash
+            out += _T("\\\\");
             break;
         case '\r':
             out += _T("\\r");
@@ -28,7 +47,8 @@ static CString EscapeValueForStorage(const CString& input) {
     return out;
 }
 
-static CString UnescapeValueFromStorage(const CString& input) {
+static CString UnescapeValueFromStorage(const CString& input)
+{
     CString out;
     out.Preallocate(input.GetLength());
     int i = 0;
@@ -40,12 +60,12 @@ static CString UnescapeValueFromStorage(const CString& input) {
             ++i;
             continue;
         }
-        // c == '\\' and there is possibly an escape sequence
+
         if (i + 1 >= n) {
-            // trailing backslash, treat as literal
             out += '\\';
             break;
         }
+
         TCHAR nx = input[i + 1];
         switch (nx) {
         case 'r':
@@ -61,13 +81,50 @@ static CString UnescapeValueFromStorage(const CString& input) {
             out += ',';
             break;
         default:
-            // unknown escape, keep the character as-is
             out += nx;
             break;
         }
         i += 2;
     }
     return out;
+}
+
+static bool IsBinaryDataFile(const CString& path, CString* pError)
+{
+    CFile file;
+    if (!file.Open(path, CFile::modeRead | CFile::typeBinary)) {
+        if (pError != NULL) {
+            *pError = GetIniMessage(_T(""), _T("data_read_failed"), _T("データファイルを読み込めませんでした。"));
+        }
+        return true;
+    }
+
+    const ULONGLONG len = file.GetLength();
+    if (len > CDataValueList::MAX_FILE_BYTES) {
+        file.Close();
+        if (pError != NULL) {
+            CString fmt = GetIniMessage(_T(""), _T("data_too_large"), _T("データファイルが大きすぎます。上限は %d バイトです。"));
+            pError->Format(fmt, CDataValueList::MAX_FILE_BYTES);
+        }
+        return true;
+    }
+
+    BYTE buffer[4096];
+    UINT bytesRead = 0;
+    while ((bytesRead = file.Read(buffer, sizeof(buffer))) > 0) {
+        for (UINT i = 0; i < bytesRead; ++i) {
+            if (buffer[i] == 0) {
+                file.Close();
+                if (pError != NULL) {
+                    *pError = GetIniMessage(_T(""), _T("data_binary_ng"), _T("バイナリ形式のデータファイルは使えません。"));
+                }
+                return true;
+            }
+        }
+    }
+
+    file.Close();
+    return false;
 }
 
 CDataValueList::CDataValueList()
@@ -80,69 +137,100 @@ CDataValueList::~CDataValueList()
 }
 
 // 3行1ユニット形式での全件読み込み
-void CDataValueList::LoadAll(CString txtPath)
+bool CDataValueList::LoadAll(CString txtPath, CString* pError)
 {
     m_arr.RemoveAll();
+    if (pError != NULL) {
+        pError->Empty();
+    }
+
+    if (txtPath.IsEmpty()) {
+        return false;
+    }
+
+    CString error;
+    if (IsBinaryDataFile(txtPath, &error)) {
+        if (pError != NULL) {
+            *pError = error;
+        }
+        return false;
+    }
 
     CStdioFile file;
-    // 読み込みモードでオープン（ファイルが存在しない場合はそのまま戻る）
     try {
         if (!file.Open(txtPath, CFile::modeRead | CFile::typeText)) {
-            return;
+            if (pError != NULL) {
+                *pError = GetIniMessage(_T(""), _T("data_read_failed"), _T("データファイルを読み込めませんでした。"));
+            }
+            return false;
         }
     }
-    catch (CFileException& ex) {
-        CString msg;
-        msg.Format(_T("Failed to open data file for read: %s"), txtPath);
-        AfxMessageBox(msg);
-        return;
+    catch (CFileException&) {
+        if (pError != NULL) {
+            *pError = GetIniMessage(_T(""), _T("data_read_failed"), _T("データファイルを読み込めませんでした。"));
+        }
+        return false;
     }
 
+    CArray<ItemData, ItemData&> loaded;
     CString lineName, lineType, lineVal;
 
-    // 1行目(name)が読み込める間ループ
     while (file.ReadString(lineName))
     {
+        lineName.Trim();
+        if (lineName.IsEmpty()) {
+            continue;
+        }
+
+        if (!file.ReadString(lineType) || !file.ReadString(lineVal)) {
+            file.Close();
+            if (pError != NULL) {
+                *pError = GetIniMessage(_T(""), _T("data_format_ng"), _T("データファイルの形式が正しくありません。"));
+            }
+            return false;
+        }
+
         ItemData data;
-        data.name = lineName.Trim();
-        if (data.name.IsEmpty()) continue; // 空行はスキップ
+        data.name = lineName;
+        if (!TryParseStrictInt(lineType, data.type)) {
+            file.Close();
+            if (pError != NULL) {
+                *pError = GetIniMessage(_T(""), _T("data_format_ng"), _T("データファイルの形式が正しくありません。"));
+            }
+            return false;
+        }
+        data.value = UnescapeValueFromStorage(lineVal);
 
-        // 2行目(type)の読み込み
-        if (file.ReadString(lineType))
-        {
-            data.type = _ttoi(lineType.Trim());
+        if (loaded.GetSize() >= MAX_ITEMS) {
+            file.Close();
+            if (pError != NULL) {
+                *pError = GetIniMessage(_T(""), _T("data_count_ng"), _T("データファイルは100件までです。"));
+            }
+            return false;
         }
 
-        // 3行目(value)の読み込み
-        if (file.ReadString(lineVal))
-        {
-            // do not Trim() value because leading/trailing spaces may be significant
-            data.value = UnescapeValueFromStorage(lineVal);
-        }
-
-        // --- typeに応じた拡張ポイント ---
-        switch (data.type)
-        {
-        case 0: // 通常テキスト
-        default:
-            break;
-        }
-
-        m_arr.Add(data);
+        loaded.Add(data);
     }
 
     file.Close();
+
+    m_arr.RemoveAll();
+    for (int i = 0; i < loaded.GetSize(); ++i) {
+        m_arr.Add(loaded[i]);
+    }
+
+    return true;
 }
 
 // 全件保存
 void CDataValueList::SaveAll(CString txtPath)
 {
     CStdioFile file;
-    // 書き込みモード（新規作成・上書き）
     try {
         if (!file.Open(txtPath, CFile::modeCreate | CFile::modeWrite | CFile::typeText)) {
             CString msg;
-            msg.Format(_T("Failed to open data file for write: %s"), txtPath);
+            CString fmt = GetIniMessage(_T(""), _T("data_write_failed"), _T("データファイルを書き込めませんでした: %s"));
+            msg.Format(fmt, txtPath);
             AfxMessageBox(msg);
             return;
         }
@@ -152,7 +240,6 @@ void CDataValueList::SaveAll(CString txtPath)
         {
             ItemData& data = m_arr.ElementAt(i);
 
-            // 3行書き出し（最後に改行を付与）
             CString strType;
             strType.Format(_T("%d"), data.type);
 
@@ -163,11 +250,12 @@ void CDataValueList::SaveAll(CString txtPath)
 
         file.Close();
     }
-    catch (CFileException& ex) {
+    catch (CFileException&)
+    {
         CString msg;
-        msg.Format(_T("Error writing data file: %s"), txtPath);
+        CString fmt = GetIniMessage(_T(""), _T("data_write_error"), _T("データファイルの書き込み中にエラーが発生しました: %s"));
+        msg.Format(fmt, txtPath);
         AfxMessageBox(msg);
-        // try to close if open
         if (file.m_pStream != NULL) {
             file.Abort();
         }
@@ -208,4 +296,3 @@ void CDataValueList::MoveDown(int i)
         m_arr.InsertAt(i + 1, temp);
     }
 }
-

@@ -61,9 +61,11 @@ jobs:
           $stage = Join-Path $env:RUNNER_TEMP "c-send-release"
           if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
           New-Item -ItemType Directory -Path $stage | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $stage "docs") | Out-Null
           Copy-Item -LiteralPath ".\Release\x64\csend.exe" -Destination $stage
           Copy-Item -LiteralPath ".\README.md" -Destination $stage
           Copy-Item -LiteralPath ".\LICENSE" -Destination $stage
+          Copy-Item -LiteralPath ".\docs\usage.md" -Destination (Join-Path $stage "docs")
           $zipPath = Join-Path $env:RUNNER_TEMP "${{ steps.version.outputs.zip_name }}"
           if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -Force
