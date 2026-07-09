@@ -157,6 +157,7 @@ static char THIS_FILE[] = __FILE__;
 
 // Make-->
 #define WM_USER_NTFYICON	(WM_USER+531)	// タスクトレイアイコンからのメッセージ用
+#define WM_USER_RESTORE_MAINWINDOW	(WM_APP+531)	// 単一起動時の再表示要求メッセージ用
 // <--Make
 
 
@@ -413,6 +414,11 @@ BOOL CAboutDlg::OnInitDialog()
 BOOL CCsendDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
+
+	CCsendApp* pApp = static_cast<CCsendApp*>(AfxGetApp());
+	if (pApp != NULL) {
+		pApp->RegisterMainWindow(m_hWnd);
+	}
 
 	// IDM_ABOUTBOX はコマンド メニューの範囲でなければなりません。
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
@@ -742,6 +748,11 @@ void CCsendDlg::OnDestroy()
 {
 	CDialog::OnDestroy();
 	
+	CCsendApp* pApp = static_cast<CCsendApp*>(AfxGetApp());
+	if (pApp != NULL) {
+		pApp->UnregisterMainWindow();
+	}
+	
 	// TODO: この位置にメッセージ ハンドラ用のコードを追加してください
 // Make-->
 
@@ -774,6 +785,13 @@ LRESULT CCsendDlg::OnNotifyIconIvents( WPARAM wParam, LPARAM lParam ){
 
 		ShowWindow( st );	// ウインドウの表示／非表示を切り替えます
 
+		break;
+	case WM_USER_RESTORE_MAINWINDOW:
+		ShowWindow( SW_RESTORE );
+		ShowWindow( SW_SHOW );
+		SetWindowPos( &wndTopMost, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE );
+		SetForegroundWindow();
+		SetFocus();
 		break;
 	case WM_RBUTTONDOWN:	//右クリック
 // Make 1.1-->
@@ -1285,6 +1303,13 @@ void CCsendDlg::UpdateList() {
 	m_CList.SetRedraw(TRUE);
 	m_CList.Invalidate();
 }
+
+
+
+
+
+
+
 
 
 
