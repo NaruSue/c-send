@@ -26,7 +26,7 @@ static bool IsReadOnlyFilePath(const CString& path)
 	DWORD attr = GetFileAttributes(path);
 	if (attr == INVALID_FILE_ATTRIBUTES) {
 		return false;
-	}
+    }
 	return (attr & FILE_ATTRIBUTE_READONLY) != 0;
 }
 
@@ -44,25 +44,25 @@ static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
 	TCHAR tempDir[MAX_PATH] = { 0 };
 	if (GetTempPath(MAX_PATH, tempDir) == 0) {
 		return false;
-	}
+    }
 
 	TCHAR tempFile[MAX_PATH] = { 0 };
 	if (GetTempFileName(tempDir, _T("csd"), 0, tempFile) == 0) {
 		return false;
-	}
+    }
 
 	CFile file;
 	if (!file.Open(tempFile, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary)) {
 		DeleteFile(tempFile);
 		return false;
-	}
+    }
 
 	HINTERNET hSession = InternetOpen(_T("C-Send"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
 	if (hSession == NULL) {
 		file.Close();
 		DeleteFile(tempFile);
 		return false;
-	}
+    }
 
 	HINTERNET hFile = InternetOpenUrl(
 		hSession,
@@ -77,7 +77,7 @@ static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
 		file.Close();
 		DeleteFile(tempFile);
 		return false;
-	}
+    }
 
 	char buffer[4096];
 	DWORD bytesRead = 0;
@@ -87,10 +87,10 @@ static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
 		if (totalBytes + bytesRead > CDataValueList::MAX_FILE_BYTES) {
 			ok = FALSE;
 			break;
-		}
+	    }
 		file.Write(buffer, bytesRead);
 		totalBytes += bytesRead;
-	}
+    }
 
 	InternetCloseHandle(hFile);
 	InternetCloseHandle(hSession);
@@ -99,7 +99,7 @@ static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
 	if (!ok) {
 		DeleteFile(tempFile);
 		return false;
-	}
+    }
 
 	tempPath = tempFile;
 	return true;
@@ -110,10 +110,10 @@ static CString MakeWindowTitle(const CString& base, BOOL isReadOnly)
 	CString title = base;
 	if (title.IsEmpty()) {
 		title = _T("C-Send");
-	}
+    }
 	if (isReadOnly) {
 		title += _T(" [RO]");
-	}
+    }
 	return title;
 }
 // <--Make
@@ -340,7 +340,7 @@ void CCsendDlg::LoadNotificationSettings()
 	m_tipTimeoutMs = GetPrivateProfileInt(_T("notification"), _T("tip_ms"), 3000, m_iniPath);
 	if (m_tipTimeoutMs == 0) {
 		m_tipTimeoutMs = 3000;
-	}
+    }
 }
 
 void CCsendDlg::ShowCopyFeedback(const CString& itemName)
@@ -348,7 +348,7 @@ void CCsendDlg::ShowCopyFeedback(const CString& itemName)
 	CString tipText = itemName;
 	if (!tipText.IsEmpty()) {
 		tipText += _T("\r\n");
-	}
+    }
 	tipText += _T("Copied to clipboard");
 
 	CPoint pt;
@@ -357,7 +357,7 @@ void CCsendDlg::ShowCopyFeedback(const CString& itemName)
 
 	if (m_bToastEnabled) {
 		ShowClipboardToast(itemName);
-	}
+    }
 }
 void CCsendDlg::ShowListStatus(const CString& message, BOOL isError)
 {
@@ -368,11 +368,11 @@ void CCsendDlg::ShowListStatus(const CString& message, BOOL isError)
 		m_StatusText.SetWindowText(message);
 		m_StatusText.ShowWindow(isError ? SW_SHOW : SW_HIDE);
         UpdateLayout();
-	}
+    }
 
 	if (::IsWindow(m_CList.m_hWnd)) {
 		m_CList.ShowWindow(isError ? SW_HIDE : SW_SHOW);
-	}
+    }
 }
 
 BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
@@ -392,6 +392,7 @@ BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
 	ON_COMMAND(ID_DELETESTRING, OnDeletestring)
 	ON_COMMAND(ID_ABOUT, OnAbout)
 	ON_COMMAND(ID_EXIT, OnExit)
+	ON_COMMAND_RANGE(ID_TRAY_ITEM_BASE, ID_TRAY_ITEM_MAX, OnTrayItemSelect)
  ON_CBN_SELCHANGE(IDC_COMBO_CATEGORY, &CCsendDlg::OnCbnSelchangeComboCategory)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
@@ -418,7 +419,7 @@ BOOL CCsendDlg::OnInitDialog()
 	CCsendApp* pApp = static_cast<CCsendApp*>(AfxGetApp());
 	if (pApp != NULL) {
 		pApp->RegisterMainWindow(m_hWnd);
-	}
+    }
 
 	// IDM_ABOUTBOX はコマンド メニューの範囲でなければなりません。
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
@@ -479,18 +480,18 @@ BOOL CCsendDlg::OnInitDialog()
 		if (CreateFontForSetting(m_listFont, m_fontName, m_fontSize)) {
 			m_CList.SetFont(&m_listFont);
 			m_CCombo.SetFont(&m_listFont);
-		}
-	}
+	    }
+    }
 
 	CRect rcStatus;
 	m_CList.GetWindowRect(&rcStatus);
 	ScreenToClient(&rcStatus);
 	if (m_StatusText.GetSafeHwnd() == NULL) {
 			m_StatusText.Create(WS_CHILD | ES_MULTILINE | ES_READONLY | ES_CENTER, rcStatus, this, 0x5001);
-	}
+    }
 	if (m_listFont.GetSafeHandle() != NULL) {
 		m_StatusText.SetFont(&m_listFont);
-	}
+    }
 	m_StatusText.SetWindowText(_T(""));
 	m_StatusText.ShowWindow(SW_HIDE);
 
@@ -526,31 +527,31 @@ void CCsendDlg::OnSysCommand(UINT nID, LPARAM lParam)
 		int i = m_CList.GetCount();	// 現在のリストの数を取得
 		m_CList.SetCurSel( i-1 );	// リストの最後を選択
 		ChangeMessage();			// 文字列追加／変更関数を呼びます
-	}
+    }
 	else if( nID == ID_CHANGE ){	// 「変更」が選択されたら
 		int j = m_CList.GetCurSel();// 現在の選択を調べます
 		if( j == LB_ERR ){			// 何も選択されていない場合は終了します
-			return;
-		}
+	        return;
+	    }
 		ChangeMessage();			// 文字列追加／変更関数を呼びます
-	}
+    }
 	else if( nID == ID_DELETESTRING ){	// 削除
 		DeleteString();					// 削除関数を呼び出します
-	}
+    }
 	else if (nID == IDS_CATEGORY) {
 		CategoryDlg();
-	}
+    }
 	else
 // <--Make
 	if ((nID & 0xFFF0) == IDM_ABOUTBOX)	// バージョン情報(AboutBox)
 	{
 		CAboutDlg dlgAbout;		// ダイアログを作成して
 		dlgAbout.DoModal();		// 表示します
-	}
+    }
 	else
 	{	// その他デフォルトの処理を行います
 		CDialog::OnSysCommand(nID, lParam);
-	}
+    }
 }
 
 // もしダイアログボックスに最小化ボタンを追加するならば、アイコンを描画する
@@ -576,11 +577,11 @@ void CCsendDlg::OnPaint()
 
 		// アイコンを描画します。
 		dc.DrawIcon(x, y, m_hIcon);
-	}
+    }
 	else
 	{
 		CDialog::OnPaint();
-	}
+    }
 }
 
 // システムは、ユーザーが最小化ウィンドウをドラッグしている間、
@@ -602,13 +603,13 @@ void CCsendDlg::OnSelchangeClist()
 	if (i < m_dataList.GetCount()) {
 		// 範囲内なら安全に .value を取得
 		text = m_dataList.Datas(i).value;
-		if (SendClipBoard(text)) {
+	    if (SendClipBoard(text)) {
 			ShowCopyFeedback(m_dataList.Datas(i).name);
-		}
+	    }
 
 		// キャプションには名前（name）を出した方が分かりやすいかも？
 		SetWindowText(MakeWindowTitle(m_dataList.Datas(i).name, m_bCurrentCategoryIsReadOnly));
-	}
+    }
 	else {
 		// 範囲外 ＝ リストの最後にある「(追加)」を選択したとみなす
 		text.LoadString(IDS_TITLE);
@@ -617,12 +618,12 @@ void CCsendDlg::OnSelchangeClist()
 		// 通常ファイルでは「(追加)」を選んだらそのまま登録画面を開く
 		if (!m_bCurrentCategoryIsReadOnly) {
 			ChangeMessage();
-		}
-	}
+	    }
+    }
 
-	if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
-		ShowWindow(SW_MINIMIZE);
-	}
+    if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
+        ShowWindow(SW_MINIMIZE);
+    }
 }
 
 // ダイアログのサイズが変更されるときに呼ばれます
@@ -634,12 +635,12 @@ void CCsendDlg::OnSize(UINT nType, int cx, int cy)
 // Make-->
 	if( IsIconic() ){	// アイコン化されたら
 		ShowWindow( SW_HIDE );	// ウインドウを非表示にします
-		return;
-	}
+        return;
+    }
 	
 	if( !IsZoomed() ){	// 最大化でなければ
 		GetWindowRect( &rect );		// 現在のウインドウのサイズを取得しておきます
-	}
+    }
 
     UpdateLayout();
 // <--Make
@@ -655,14 +656,14 @@ BOOL CCsendDlg::SendClipBoard( CString& text )
 		csMessage.LoadString( IDS_CBD_NOOPEN );
 		AfxMessageBox( csMessage );
 		return FALSE;
-	}
+    }
 	if( !EmptyClipboard() ){	// クリップボードの内容を初期化します
 		// 失敗した場合はメッセージを表示して処理を終了します
 		csMessage.LoadString( IDS_CBD_NOEMPTY );
 		AfxMessageBox( csMessage );
 		CloseClipboard();
 		return FALSE;
-	}
+    }
 
 	char* buff;	// クリップボードへ転送するための領域を作ります
 	// GlobalAllocを使い、GMEM_DDESHAREの属性で作成します
@@ -671,7 +672,7 @@ BOOL CCsendDlg::SendClipBoard( CString& text )
 	if (buff == NULL) {
 		CloseClipboard();
 		return FALSE;
-	}
+    }
 
 	lstrcpy( buff, (LPCTSTR)text );	// 作成した文字列を転送します
 
@@ -681,7 +682,7 @@ BOOL CCsendDlg::SendClipBoard( CString& text )
 		AfxMessageBox( csMessage );
 		CloseClipboard();
 		return FALSE;
-	}
+    }
 	CloseClipboard();	// クリップボードを閉じます
 	return TRUE;
 }
@@ -694,8 +695,8 @@ void CCsendDlg::OnDblclkClist()
 
 	int i = m_CList.GetCurSel();
 	if( i < 0 || i >= m_dataList.GetCount() ){
-		return;
-	}
+        return;
+    }
 
 	CInputBox cInput;
 	CString InputWindowName(_T("内容確認"));
@@ -717,8 +718,8 @@ void CCsendDlg::OnClose()
 	// TODO: この位置にメッセージ ハンドラ用のコードを追加するかまたはデフォルトの処理を呼び出してください
 // Make-->
 	if (!ConfirmExit()) {
-		return;
-	}
+        return;
+    }
 	CDialog::OnOK();	// ウインドウを閉じます
 // <--Make
 }
@@ -751,7 +752,7 @@ void CCsendDlg::OnDestroy()
 	CCsendApp* pApp = static_cast<CCsendApp*>(AfxGetApp());
 	if (pApp != NULL) {
 		pApp->UnregisterMainWindow();
-	}
+    }
 	
 	// TODO: この位置にメッセージ ハンドラ用のコードを追加してください
 // Make-->
@@ -767,24 +768,22 @@ void CCsendDlg::OnDestroy()
 
 // タスクトレイのアイコンがクリックされたときに呼ばれます
 // Make-->
-LRESULT CCsendDlg::OnNotifyIconIvents( WPARAM wParam, LPARAM lParam ){
-
+LRESULT CCsendDlg::OnNotifyIconIvents( WPARAM wParam, LPARAM lParam )
+{
 	switch( lParam ){
-	case WM_LBUTTONDOWN:	// 左クリック
-		int st;	// ウインドウのモードを取得
-	
-		if( IsWindowVisible() ){	// ウインドウが表示されていたら
+	case WM_LBUTTONDOWN:    // 左クリック
+		int st;
+
+		if( IsWindowVisible() ){
 			st = SW_HIDE;
 		}
-		else{	// ウインドウが非表示なら
-			st = SW_SHOW;	// ウインドウを表示して元の大きさに戻します
+		else{
+			st = SW_SHOW;
 			ShowWindow( SW_RESTORE );
-			// ツールが使いやすいように常に手前に表示します
 			SetWindowPos( &wndTopMost, 0,0,0,0, SWP_NOSIZE | SWP_NOMOVE );
 		}
 
-		ShowWindow( st );	// ウインドウの表示／非表示を切り替えます
-
+		ShowWindow( st );
 		break;
 	case WM_USER_RESTORE_MAINWINDOW:
 		ShowWindow( SW_RESTORE );
@@ -793,35 +792,51 @@ LRESULT CCsendDlg::OnNotifyIconIvents( WPARAM wParam, LPARAM lParam ){
 		SetForegroundWindow();
 		SetFocus();
 		break;
-	case WM_RBUTTONDOWN:	//右クリック
-// Make 1.1-->
+	case WM_RBUTTONDOWN:    //右クリック
+	{
 		POINT point;
-		GetCursorPos( &point );	// 現在のカーソルの位置を取得
+		GetCursorPos( &point );
 
-		SetForegroundWindow();	//ウィンドウをフォアグラウンドに持ってきます。
-		SetFocus();	//これをしないと、メニューが消えなくなります。
+		SetForegroundWindow();
+		SetFocus();
 
-		CMenu cMenu;	// メニュー
-		if( !cMenu.CreatePopupMenu() ){	// ポップアップメニューを作成します
+		CMenu cMenu;
+		if( !cMenu.CreatePopupMenu() ){
 			break;
 		}
 
-		CString strMenu;	// メニューに表示する文字列用
-		strMenu.LoadString(IDS_ABOUTBOX);	// メニューに「バージョン情報」を表示します
-		cMenu.AppendMenu( MF_STRING, ID_ABOUT, strMenu); 
-		strMenu.LoadString(IDS_EXIT);	// メニューに「終了」を表示します
-		cMenu.AppendMenu( MF_STRING, ID_EXIT, strMenu); 
+		CString strMenu;
+		int itemCount = m_dataList.GetCount();
+		if (itemCount > 0) {
+			for (int i = 0; i < itemCount && i <= (ID_TRAY_ITEM_MAX - ID_TRAY_ITEM_BASE); i++) {
+				CString itemName = m_dataList.Datas(i).name;
+				itemName.Replace(_T("&"), _T("&&"));
+				if (itemName.IsEmpty()) {
+					itemName = _T("(no items)");
+				}
+				cMenu.AppendMenu(MF_STRING, ID_TRAY_ITEM_BASE + i, itemName);
+			}
+		}
+		else {
+			CString noItems = _T("(no items)");
+			noItems.Replace(_T("&"), _T("&&"));
+			cMenu.AppendMenu(MF_STRING | MF_GRAYED | MF_DISABLED, ID_TRAY_ITEM_BASE, noItems);
+		}
 
-		cMenu.TrackPopupMenu( TPM_LEFTALIGN | TPM_LEFTBUTTON, point.x, point.y, this );	//ポップアップメニューを表示します。
+		cMenu.AppendMenu(MF_SEPARATOR);
+		strMenu.LoadString(IDS_ABOUTBOX);
+		cMenu.AppendMenu( MF_STRING, ID_ABOUT, strMenu);
+		strMenu.LoadString(IDS_EXIT);
+		cMenu.AppendMenu( MF_STRING, ID_EXIT, strMenu);
 
-		PostMessage( WM_NULL );	//これをしないと、２度目のメニューがすぐ消えちゃいます。
-// -->Make 1.1
+		cMenu.TrackPopupMenu( TPM_LEFTALIGN | TPM_LEFTBUTTON, point.x, point.y, this );
+		PostMessage( WM_NULL );
+	}
 		break;
 	}
-	
+
 	return 0;
 }
-
 // ダイアログの中で右クリックしたときに呼ばれます
 // ここでContextMenu（ポップアップのメニュー）の処理を行いましょう
 void CCsendDlg::OnContextMenu(CWnd* pWnd, CPoint point) 
@@ -841,12 +856,12 @@ void CCsendDlg::OnContextMenu(CWnd* pWnd, CPoint point)
 // Make-->
 	// 現在のマウスカーソルがリストにあるかどうかをチェックしています
 	if( pWnd != (CWnd*)GetDlgItem( IDC_CLIST ) ){
-		return;
-	}
+        return;
+    }
 
 	if (m_bCurrentCategoryIsReadOnly) {
-		return;
-	}
+        return;
+    }
 
 	BOOL tmp;	// ItemFromPointの為の作業用変数です（今回は未使用）
 	m_CList.ScreenToClient( &point );	// 右クリックでリストの選択を行うため、座標を変換します
@@ -855,8 +870,8 @@ void CCsendDlg::OnContextMenu(CWnd* pWnd, CPoint point)
 
 	CMenu cMenu;	// メニュー
 	if( !cMenu.CreatePopupMenu() ){	// ポップアップメニューを作成します
-		return;
-	}
+        return;
+    }
 
 	CString text;	// 文字列取得用
 	int i=m_CList.GetCurSel();	// 現在の選択されているリストを取得します
@@ -869,13 +884,13 @@ void CCsendDlg::OnContextMenu(CWnd* pWnd, CPoint point)
 	if( l_tmp == text ){	// 現在（追加）が選ばれているとき
 		strMenu.LoadString(IDS_ADDSTRING);	// メニューには「登録」を表示します
 		cMenu.AppendMenu( MF_STRING, ID_ADDSTRING, strMenu); 
-	}
+    }
 	else{	// （追加）以外が選ばれているとき
 		strMenu.LoadString(IDS_CHANGESTRING);	// 変更
 		cMenu.AppendMenu( MF_STRING, ID_CHANGE, strMenu ); 
 		strMenu.LoadString(IDS_DELETESTRING);	// 削除
 		cMenu.AppendMenu( MF_STRING, ID_DELETESTRING, strMenu ); 
-	}
+    }
 
 	// クライアント座標からスクリーン座標に戻します
 	m_CList.ClientToScreen( &point );
@@ -890,25 +905,25 @@ void CCsendDlg::OnContextMenu(CWnd* pWnd, CPoint point)
 void CCsendDlg::DeleteString()
 {
 	if (m_bCurrentCategoryIsReadOnly) {
-		return;
-	}
+        return;
+    }
 
 	int i = m_CList.GetCount();	// 現在のリストの数を数えます
 	if( i<1 ){	// リストに一つもなければ何もしません
-		return;
-	}
+        return;
+    }
 
 	int j = m_CList.GetCurSel();	// 現在選択されている項目を調べます
 	if( j == LB_ERR ){	// 何も選択されていなければ何もしません
-		return;
-	}
+        return;
+    }
 
 	if( j == i-1 ){	// 選択されている項目が最後（追加）での場合
 		CString csMessage;
 		csMessage.LoadString( IDS_NODELETE ); // エラーメッセージを出します
 		AfxMessageBox( csMessage );
-		return;
-	}
+        return;
+    }
 
 	CString cst;	// 現在の文字列を取得
 	CString output;	// 確認メッセージ用の
@@ -927,8 +942,8 @@ void CCsendDlg::DeleteString()
 	if( MessageBox( output, csMessage,	// 確認ダイアログを表示します
 				MB_ICONQUESTION | MB_OKCANCEL | MB_DEFBUTTON2 )	// このときデフォルトのボタンをキャンセルにします
 		== IDCANCEL ){
-		return;	// キャンセルが選択された場合何もせずに終了します
-	}
+        return;	// キャンセルが選択された場合何もせずに終了します
+    }
 
     // remove the selected item (j), not the total count (i)
 	m_dataList.Remove(j);
@@ -989,8 +1004,8 @@ void CCsendDlg::OnCbnSelchangeComboCategory()
 void CCsendDlg::ChangeMessage()
 {
 	if (m_bCurrentCategoryIsReadOnly) {
-		return;
-	}
+        return;
+    }
 
 	CInputBox cInput;	// メッセージ編集用のダイアログ
 	
@@ -1002,11 +1017,11 @@ void CCsendDlg::ChangeMessage()
 	if( i >= m_dataList.GetCount() ){	// 現在の文字列が（追加）の時
 		InputWindowName.LoadString( IDS_REGIST );	// キャプションは「登録」を選びます
 		flag = TRUE;	// フラグを「登録」(TRUE)にします
-	}
+    }
 	else{
 		cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value);	// メッセージ編集用のダイアログに現在選択されている文字列を設定します
 		InputWindowName.LoadString( IDS_CHANGE );	// キャプションは「変更」を選びます
-	}
+    }
 	cInput.SetWindowName( InputWindowName );	// キャプションを設定します
 
 	if (cInput.DoModal() == IDOK) {
@@ -1019,13 +1034,13 @@ void CCsendDlg::ChangeMessage()
 			if (!m_dataList.Add(title, text)) {
 			    AfxMessageBox(GetIniMessage(_T(""), _T("data_add_limit"), _T("データは100件までです。")));
 			    return;
-			}
-		}
+		    }
+	    }
 		else {
 			// 既存編集
 			m_dataList.Datas(i).name = title;
 			m_dataList.Datas(i).value = text;
-		}
+	    }
 
 		// 2. 確定したメモリの内容をファイルへ物理保存
 		// ここで m_dataListPath が使われます
@@ -1037,10 +1052,33 @@ void CCsendDlg::ChangeMessage()
 
 		// 編集した位置にカーソルを戻すと親切
 		m_CList.SetCurSel(i);
-	}
+    }
 }
 // <--Make
 
+void CCsendDlg::ActivateListItem(int index)
+{
+    if (index < 0 || index >= m_dataList.GetCount()) {
+        return;
+    }
+
+    CString text = m_dataList.Datas(index).value;
+    if (SendClipBoard(text)) {
+        ShowCopyFeedback(m_dataList.Datas(index).name);
+    }
+
+    SetWindowText(MakeWindowTitle(m_dataList.Datas(index).name, m_bCurrentCategoryIsReadOnly));
+
+    if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
+        ShowWindow(SW_MINIMIZE);
+    }
+}
+
+void CCsendDlg::OnTrayItemSelect(UINT nID)
+{
+    int index = (int)(nID - ID_TRAY_ITEM_BASE);
+    ActivateListItem(index);
+}
 // タスクトレイで「ﾊﾞｰｼﾞｮﾝ情報」が選択されたときに呼ばれます
 void CCsendDlg::OnAbout() 
 {
@@ -1057,8 +1095,8 @@ void CCsendDlg::OnExit()
 	// TODO: この位置にコマンド ハンドラ用のコードを追加してください
 // Make 1.1-->
 	if (!ConfirmExit()) {
-		return;
-	}
+        return;
+    }
 	CDialog::OnOK();	// ウインドウを閉じます
 // <--Make 1.1
 }
@@ -1082,7 +1120,7 @@ void CCsendDlg::SaveData()
 	if (m_fontSize != 0) {
 		fontSize = m_fontSize;
 		fontName = m_fontName;
-	}
+    }
 
 	CString strSize;
 	strSize.Format(_T("%d"), fontSize);
@@ -1093,7 +1131,7 @@ void CCsendDlg::SaveData()
 	CString strWindow;
 	if (!IsIconic() && !IsZoomed()) {	// ウインドウがアイコン化や最大化されていなければ
 		GetWindowRect(&rect);	// ウインドウサイズを取得します
-	}
+    }
 	strWindow.Format("%04X%04X%04X%04X", rect.top, rect.left,
 		rect.bottom, rect.right);
 	WritePrivateProfileString(_T("Window"), _T("window"), strWindow, m_iniPath);
@@ -1105,7 +1143,7 @@ void CCsendDlg::SaveData()
 	if (!m_SavePath.IsEmpty() && !m_bCurrentCategoryIsReadOnly) {
 		// 構造化されたデータを一括保存
 		m_dataList.SaveAll(m_SavePath);
-	}
+    }
 
 	// 終了時に選択中のカテゴリ名を保存（起動時に復元するため）
 	if (nSel != CB_ERR) {
@@ -1113,12 +1151,12 @@ void CCsendDlg::SaveData()
 		DWORD_PTR itemData = m_CCombo.GetItemData(nSel);
 		if (itemData != CB_ERR && itemData < (DWORD_PTR)m_categorys.GetCount()) {
 			selName = m_categorys.Datas((int)itemData).name;
-		}
+	    }
 		else {
 			m_CCombo.GetLBText(nSel, selName);
-		}
+	    }
 		WritePrivateProfileString(_T("category"), _T("last"), selName, m_iniPath);
-	}
+    }
 }
 // <--Make 1.1
 
@@ -1162,7 +1200,7 @@ void CCsendDlg::CategoryUpdate()
 	int lastSel = m_CCombo.GetCurSel();
 	if (lastSel < 0) {
 		lastSel = 0;
-	}
+    }
 
 	m_CCombo.SetRedraw(FALSE);
 	m_CCombo.ResetContent();
@@ -1172,8 +1210,8 @@ void CCsendDlg::CategoryUpdate()
 		int pos = m_CCombo.AddString(MakeCategoryLabel(m_categorys.Datas(i).name, m_categorys.Datas(i).path));
 		if (pos != CB_ERR) {
 			m_CCombo.SetItemData(pos, i);
-		}
-	}
+	    }
+    }
 
 	// 起動時に前回選択していたカテゴリを復元する
 	CString lastName;
@@ -1188,9 +1226,9 @@ void CCsendDlg::CategoryUpdate()
 			if (m_categorys.Datas(i).name == lastName) {
 				selectIndex = i;
 				break;
-			}
-		}
-	}
+		    }
+	    }
+    }
 
 	if (selectIndex < 0) selectIndex = 0;
 	m_CCombo.SetCurSel(selectIndex);
@@ -1203,12 +1241,12 @@ CString CCsendDlg::GetValidFilePath(CString fileName) {
 	CFileStatus status;
 	if (CFile::GetStatus(fullPath, status)) {
 		return fullPath;
-	}
+    }
 
 	// 2. 失敗したらファイル名単体（カレントディレクトリ）をチェック
 	if (CFile::GetStatus(fileName, status)) {
 		return fileName;
-	}
+    }
 
 	// どちらにもなければ空を返す
 	return _T("");
@@ -1223,8 +1261,8 @@ void CCsendDlg::UpdateList() {
 	int crrCatIndex = m_CCombo.GetCurSel();
 	if (crrCatIndex < 0) {
 		m_CList.SetRedraw(TRUE);
-		return;
-	}
+        return;
+    }
 
 	CString categoryName = m_categorys.Datas(crrCatIndex).name;
 	CString fileName = m_categorys.Datas(crrCatIndex).path;
@@ -1238,59 +1276,59 @@ void CCsendDlg::UpdateList() {
 		if (DownloadUrlToTempFile(fileName, tempPath)) {
 			if (m_dataList.LoadAll(tempPath, &errorText)) {
 				m_SavePath = fileName;
-			}
+		    }
 			else {
 				loadError = TRUE;
                 m_SavePath.Empty();
                 errorPath = fileName;
 				m_dataList.ClearAll();
-			}
+		    }
 			DeleteFile(tempPath);
-		}
+	    }
 		else {
 			loadError = TRUE;
                 errorPath = fileName;
 			m_SavePath.Empty();
 			m_dataList.ClearAll();
 			errorText = GetIniMessage(_T(""), _T("url_read_failed"), _T("URLから読み込めませんでした。"));
-		}
-	}
+	    }
+    }
 	else {
 		CString targetPath = GetValidFilePath(fileName);
 		if (!targetPath.IsEmpty()) {
 			if (m_dataList.LoadAll(targetPath, &errorText)) {
 				m_SavePath = targetPath;
 				m_bCurrentCategoryIsReadOnly = IsReadOnlyFilePath(targetPath);
-			}
+		    }
 			else {
 				loadError = TRUE;
                 m_SavePath.Empty();
                 errorPath = fileName;
 				m_bCurrentCategoryIsReadOnly = TRUE;
 				m_dataList.ClearAll();
-			}
-		}
+		    }
+	    }
 		else {
 			CString candidate = m_appPath + _T("\\") + fileName;
 			m_SavePath = candidate;
 			m_dataList.ClearAll();
-		}
-	}
+	    }
+    }
 
 	if (loadError) {
 		if (errorText.IsEmpty()) {
 			errorText = GetIniMessage(_T(""), _T("read_failed"), _T("読み込みできませんでした。"));
-		}
+	    }
         ShowListStatus(MakeListStatusMessage(categoryName, errorPath, errorText), TRUE);
 		SetWindowText(MakeWindowTitle(categoryName, TRUE));
 		m_CList.SetRedraw(TRUE);
 		m_CList.Invalidate();
-		return;
-	}
+        return;
+    }
 
 	for (int i = 0; i < m_dataList.GetCount(); i++) {
 		m_CList.AddString(m_dataList.Datas(i).name);
-	}
+    }
 
 	SetWindowText(MakeWindowTitle(categoryName, m_bCurrentCategoryIsReadOnly));
 
@@ -1298,7 +1336,7 @@ void CCsendDlg::UpdateList() {
 		CString adds;
 		adds.LoadString(IDS_LISTADD);
 		m_CList.AddString(adds);
-	}
+    }
 
 	m_CList.SetRedraw(TRUE);
 	m_CList.Invalidate();

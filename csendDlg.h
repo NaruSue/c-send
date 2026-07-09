@@ -43,6 +43,7 @@ public:
 protected:
 	void ChangeMessage( void );
 	void DeleteString(void);
+	void ActivateListItem(int index);
 	BOOL SendClipBoard( CString& text );
 	BOOL ConfirmExit();
 	HICON m_hIcon;
@@ -79,10 +80,15 @@ protected:
 	afx_msg void OnDeletestring();
 	afx_msg void OnAbout();
 	afx_msg void OnExit();
+	afx_msg void OnTrayItemSelect(UINT nID);
  afx_msg void OnCbnSelchangeComboCategory();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 private:
+	enum {
+		ID_TRAY_ITEM_BASE = 40000,
+		ID_TRAY_ITEM_MAX = ID_TRAY_ITEM_BASE + 99
+	};
 	NOTIFYICONDATA m_stNtfyIcon;
 	RECT rect;
 	CString m_SelText;
