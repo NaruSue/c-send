@@ -19,7 +19,7 @@ public:
 
 	BOOL RegisterMainWindow(HWND hWnd);
 	void UnregisterMainWindow();
-	BOOL RestoreExistingInstance();
+	BOOL NotifyExistingInstance(UINT commandMessage, BOOL waitForExit);
 
 // オーバーライド
 	// ClassWizard は仮想関数を生成しオーバーライドします。
@@ -41,6 +41,8 @@ private:
 	HANDLE m_hSingleInstanceMutex = NULL;
 	HANDLE m_hMainWindowMapping = NULL;
 	HWND* m_pSharedMainWnd = NULL;
+	BOOL m_bMainWindowRegistered = FALSE;
+	int m_commandExitCode = 0;
 };
 
 
