@@ -161,7 +161,9 @@ static char THIS_FILE[] = __FILE__;
 
 // Make-->
 #define WM_USER_NTFYICON	(WM_USER+531)	// タスクトレイアイコンからのメッセージ用
-#define WM_USER_RESTORE_MAINWINDOW	(WM_APP+531)	// 単一起動時の再表示要求メッセージ用
+#define WM_USER_RESTORE_MAINWINDOW	(WM_APP+531)
+#define WM_USER_EXIT_MAINWINDOW	(WM_APP+532)
+// 単一起動時の再表示要求メッセージ用
 // <--Make
 
 
@@ -585,9 +587,15 @@ BOOL CCsendDlg::OnInitDialog()
 	m_stNtfyIcon.uCallbackMessage = WM_USER_NTFYICON;	// アイコンがクリックされたときに送り出すメッセージです
 	lstrcpy( m_stNtfyIcon.szTip, _T( "C-Send" ) );		// チップの文字列です。
 	m_stNtfyIcon.guidItem = kTrayIconGuid;
-	::Shell_NotifyIcon( NIM_ADD, &m_stNtfyIcon );		// タスクトレイに表示します。
-	m_stNtfyIcon.uVersion = NOTIFYICON_VERSION_4;
-	::Shell_NotifyIcon( NIM_SETVERSION, &m_stNtfyIcon );
+	BOOL trayIconAdded = ::Shell_NotifyIcon( NIM_ADD, &m_stNtfyIcon );
+	if (!trayIconAdded) {
+		m_stNtfyIcon.uFlags &= ~NIF_GUID;
+		trayIconAdded = ::Shell_NotifyIcon( NIM_ADD, &m_stNtfyIcon );
+	}
+	if (trayIconAdded) {
+		m_stNtfyIcon.uVersion = NOTIFYICON_VERSION_4;
+		::Shell_NotifyIcon( NIM_SETVERSION, &m_stNtfyIcon );
+	}
 
 // <--Make
 
@@ -856,6 +864,9 @@ LRESULT CCsendDlg::OnNotifyIconIvents( WPARAM wParam, LPARAM lParam )
 		break;
 	case WM_USER_RESTORE_MAINWINDOW:
 		RestoreMainWindow();
+		break;
+	case WM_USER_EXIT_MAINWINDOW:
+		CDialog::OnOK();
 		break;
 	case WM_RBUTTONDOWN:    //右クリック
 	{
