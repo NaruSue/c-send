@@ -39,6 +39,27 @@ static const TCHAR kSingleInstanceMutexName[] = _T("Local\\C-Send-SingleInstance
 static const TCHAR kMainWindowMappingName[] = _T("Local\\C-Send-MainWindow");
 static const UINT kNotifyIconMessage = WM_USER + 531;
 static const UINT kRestoreMainWindowMessage = WM_APP + 531;
+static const UINT kExitMainWindowMessage = WM_APP + 532;
+
+static BOOL HasAllExitArgument()
+{
+	int argc = 0;
+	LPWSTR* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+	if (argv == NULL) {
+		return FALSE;
+	}
+
+	BOOL found = FALSE;
+	for (int i = 1; i < argc; ++i) {
+		if (::_wcsicmp(argv[i], L"/allexit") == 0) {
+			found = TRUE;
+			break;
+		}
+	}
+
+	::LocalFree(argv);
+	return found;
+}
 
 static void ActivateMainWindow(HWND hWnd)
 {
@@ -87,7 +108,7 @@ void CCsendApp::UnregisterMainWindow()
 	m_bMainWindowRegistered = FALSE;
 }
 
-BOOL CCsendApp::RestoreExistingInstance()
+BOOL CCsendApp::NotifyExistingInstance(UINT commandMessage, BOOL waitForExit)
 {
 	if (m_hMainWindowMapping == NULL) {
 		m_hMainWindowMapping = ::CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(HWND), kMainWindowMappingName);
@@ -118,13 +139,28 @@ BOOL CCsendApp::RestoreExistingInstance()
 		return FALSE;
 	}
 
-	DWORD_PTR result = 0;
-	if (::SendMessageTimeout(hWnd, kNotifyIconMessage, 0, kRestoreMainWindowMessage, SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &result) != 0) {
+	if (!waitForExit) {
+		DWORD_PTR result = 0;
+		if (::SendMessageTimeout(hWnd, kNotifyIconMessage, 0, commandMessage, SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &result) != 0) {
+			return TRUE;
+		}
+
+		ActivateMainWindow(hWnd);
 		return TRUE;
 	}
 
-	ActivateMainWindow(hWnd);
-	return TRUE;
+	DWORD processId = 0;
+	::GetWindowThreadProcessId(hWnd, &processId);
+	HANDLE hProcess = (processId != 0) ? ::OpenProcess(SYNCHRONIZE, FALSE, processId) : NULL;
+	BOOL posted = ::PostMessage(hWnd, kNotifyIconMessage, 0, commandMessage);
+	BOOL stopped = posted;
+	if (posted && hProcess != NULL) {
+		stopped = (::WaitForSingleObject(hProcess, 10000) == WAIT_OBJECT_0);
+	}
+	if (hProcess != NULL) {
+		::CloseHandle(hProcess);
+	}
+	return stopped;
 }
 
 int CCsendApp::ExitInstance()
@@ -162,9 +198,13 @@ BOOL CCsendApp::InitInstance()
 	Enable3dControls();			// 共有 DLL 内で MFC を使う場合はここをコールしてください。
 #endif
 
+	BOOL allExitRequested = HasAllExitArgument();
 	m_hSingleInstanceMutex = ::CreateMutex(NULL, FALSE, kSingleInstanceMutexName);
 	if (m_hSingleInstanceMutex != NULL && ::GetLastError() == ERROR_ALREADY_EXISTS) {
-		RestoreExistingInstance();
+		NotifyExistingInstance(allExitRequested ? kExitMainWindowMessage : kRestoreMainWindowMessage, allExitRequested);
+		return FALSE;
+	}
+	if (allExitRequested) {
 		return FALSE;
 	}
 

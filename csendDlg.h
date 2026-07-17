@@ -92,7 +92,7 @@ private:
 		ID_TRAY_ITEM_BASE = 40000,
 		ID_TRAY_ITEM_MAX = ID_TRAY_ITEM_BASE + 99
 	};
-	NOTIFYICONDATA m_stNtfyIcon;
+	NOTIFYICONDATA m_stNtfyIcon = {};
 	RECT rect;
 	CString m_SelText;
 	BOOL m_bCurrentCategoryIsUrl = FALSE;
