@@ -42,6 +42,7 @@ private:
 	HANDLE m_hMainWindowMapping = NULL;
 	HWND* m_pSharedMainWnd = NULL;
 	BOOL m_bMainWindowRegistered = FALSE;
+	int m_commandExitCode = 0;
 };
 
 

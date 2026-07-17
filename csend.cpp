@@ -126,14 +126,16 @@ BOOL CCsendApp::NotifyExistingInstance(UINT commandMessage, BOOL waitForExit)
 		return FALSE;
 	}
 
+	const DWORD timeoutMs = waitForExit ? 10000 : 2000;
+	const DWORD startTick = ::GetTickCount();
 	HWND hWnd = NULL;
-	for (int i = 0; i < 40; ++i) {
+	do {
 		hWnd = *m_pSharedMainWnd;
 		if (::IsWindow(hWnd)) {
 			break;
 		}
 		::Sleep(50);
-	}
+	} while ((::GetTickCount() - startTick) < timeoutMs);
 
 	if (!::IsWindow(hWnd)) {
 		return FALSE;
@@ -152,13 +154,25 @@ BOOL CCsendApp::NotifyExistingInstance(UINT commandMessage, BOOL waitForExit)
 	DWORD processId = 0;
 	::GetWindowThreadProcessId(hWnd, &processId);
 	HANDLE hProcess = (processId != 0) ? ::OpenProcess(SYNCHRONIZE, FALSE, processId) : NULL;
-	BOOL posted = ::PostMessage(hWnd, kNotifyIconMessage, 0, commandMessage);
-	BOOL stopped = posted;
-	if (posted && hProcess != NULL) {
-		stopped = (::WaitForSingleObject(hProcess, 10000) == WAIT_OBJECT_0);
+	if (!::PostMessage(hWnd, kNotifyIconMessage, 0, commandMessage)) {
+		if (hProcess != NULL) {
+			::CloseHandle(hProcess);
+		}
+		return FALSE;
 	}
+
+	DWORD elapsed = ::GetTickCount() - startTick;
+	DWORD remaining = (elapsed < timeoutMs) ? timeoutMs - elapsed : 0;
+	BOOL stopped = FALSE;
 	if (hProcess != NULL) {
+		stopped = (::WaitForSingleObject(hProcess, remaining) == WAIT_OBJECT_0);
 		::CloseHandle(hProcess);
+	}
+	else {
+		while (::IsWindow(hWnd) && (::GetTickCount() - startTick) < timeoutMs) {
+			::Sleep(50);
+		}
+		stopped = !::IsWindow(hWnd);
 	}
 	return stopped;
 }
@@ -182,7 +196,8 @@ int CCsendApp::ExitInstance()
 		m_hSingleInstanceMutex = NULL;
 	}
 
-	return CWinApp::ExitInstance();
+	int exitCode = CWinApp::ExitInstance();
+	return (m_commandExitCode != 0) ? m_commandExitCode : exitCode;
 }
 /////////////////////////////////////////////////////////////////////////////
 // CCsendApp ƒNƒ‰ƒX‚Ì‰Šú‰»
@@ -201,7 +216,10 @@ BOOL CCsendApp::InitInstance()
 	BOOL allExitRequested = HasAllExitArgument();
 	m_hSingleInstanceMutex = ::CreateMutex(NULL, FALSE, kSingleInstanceMutexName);
 	if (m_hSingleInstanceMutex != NULL && ::GetLastError() == ERROR_ALREADY_EXISTS) {
-		NotifyExistingInstance(allExitRequested ? kExitMainWindowMessage : kRestoreMainWindowMessage, allExitRequested);
+		BOOL notified = NotifyExistingInstance(allExitRequested ? kExitMainWindowMessage : kRestoreMainWindowMessage, allExitRequested);
+		if (allExitRequested && !notified) {
+			m_commandExitCode = 1;
+		}
 		return FALSE;
 	}
 	if (allExitRequested) {
