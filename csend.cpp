@@ -75,14 +75,16 @@ BOOL CCsendApp::RegisterMainWindow(HWND hWnd)
 	}
 
 	*m_pSharedMainWnd = hWnd;
+	m_bMainWindowRegistered = TRUE;
 	return TRUE;
 }
 
 void CCsendApp::UnregisterMainWindow()
 {
-	if (m_pSharedMainWnd != NULL) {
+	if (m_bMainWindowRegistered && m_pSharedMainWnd != NULL) {
 		*m_pSharedMainWnd = NULL;
 	}
+	m_bMainWindowRegistered = FALSE;
 }
 
 BOOL CCsendApp::RestoreExistingInstance()

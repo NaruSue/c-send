@@ -41,6 +41,7 @@ private:
 	HANDLE m_hSingleInstanceMutex = NULL;
 	HANDLE m_hMainWindowMapping = NULL;
 	HWND* m_pSharedMainWnd = NULL;
+	BOOL m_bMainWindowRegistered = FALSE;
 };
 
 
