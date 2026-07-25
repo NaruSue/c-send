@@ -49,6 +49,16 @@ jobs:
             throw "Tag already exists: $tag"
           }
 
+      - name: Read release notes
+        id: release_notes
+        shell: pwsh
+        run: |
+          $path = ".\\docs\\release-notes\\${{ steps.version.outputs.tag_name }}.md"
+          if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Release notes not found: $path"
+          }
+          "path=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Build Release
         shell: pwsh
         run: |
@@ -84,4 +94,4 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag_name }}
           name: ${{ steps.version.outputs.tag_name }}
           files: ${{ steps.stage.outputs.zip_path }}
-          generate_release_notes: true
+          body_path: ${{ steps.release_notes.outputs.path }}

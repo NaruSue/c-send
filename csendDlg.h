@@ -53,6 +53,7 @@ protected:
 	CString m_appPath;
 	CString m_iniPath;
 	CString m_SavePath;
+	DataFileFormat m_currentDataFormat = DATA_FILE_FORMAT_TEXT;
 
 	int m_fontSize = 0;
 	CString m_fontName;
