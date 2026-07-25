@@ -1,0 +1,22 @@
+﻿[
+  {
+    "name": "Git Status",
+    "value": "git status",
+    "type": 0
+  },
+  {
+    "name": "Git Pull",
+    "value": "git pull",
+    "type": 0
+  },
+  {
+    "name": "agawegaw",
+    "value": "bawegawetaew",
+    "type": 0
+  },
+  {
+    "name": "aaaa",
+    "value": "[scripts-ver/hta/readme.md](C:\\\\Users\\\\n-cho\\\\Documents\\\\Codex\\\\2026-06-12\\\\new-chat\\\\c-send\\\\scripts-ver\\\\hta\\\\readme.md) に、設計書ベースの説明を書き出しました。\n入れた内容は主にこれです。\nHTA版の目的\nWindows / mshta.exe 前提であること\nネイティブ版より機能が省略されていること\n導入方法\n一覧からのコピー、追加、編集、削除の使い方\ndefault.json と setting.ini の説明\nファイル構成\n補足事項\ndefault.json は未存在時に自動作成、setting.ini は既定値で起動して終了時に保存、という実装に合わせて書いてあります。\n必要なら次に、README の文面をもう少し「配布向け」に寄せて、もっと短く読みやすく整えることもできます。",
+    "type": 0
+  }
+]
