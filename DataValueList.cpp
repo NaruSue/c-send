@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "DataValueList.h"
 #include "IniTextUtil.h"
+#include "JsonDataFile.h"
 
 static bool TryParseStrictInt(const CString& text, int& value)
 {
@@ -137,8 +138,12 @@ CDataValueList::~CDataValueList()
 }
 
 // 3行1ユニット形式での全件読み込み
-bool CDataValueList::LoadAll(CString txtPath, CString* pError)
+bool CDataValueList::LoadAll(CString txtPath, DataFileFormat format, CString* pError)
 {
+    if (format == DATA_FILE_FORMAT_JSON) {
+        return LoadJsonDataFile(txtPath, m_arr, pError);
+    }
+
     m_arr.RemoveAll();
     if (pError != NULL) {
         pError->Empty();
@@ -223,8 +228,13 @@ bool CDataValueList::LoadAll(CString txtPath, CString* pError)
 }
 
 // 全件保存
-void CDataValueList::SaveAll(CString txtPath)
+void CDataValueList::SaveAll(CString txtPath, DataFileFormat format)
 {
+    if (format == DATA_FILE_FORMAT_JSON) {
+        SaveJsonDataFile(txtPath, m_arr);
+        return;
+    }
+
     CStdioFile file;
     try {
         if (!file.Open(txtPath, CFile::modeCreate | CFile::modeWrite | CFile::typeText)) {

@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1f5f8b" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="c-send" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="c-send.ico" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<title>c-send PWA v1.13</title>
+<style>
+:root {
+  --bg: #eef3f7;
+  --panel: #ffffff;
+  --panel-soft: rgba(255, 255, 255, 0.75);
+  --text: #18212b;
+  --muted: #607080;
+  --border: #d8e1ea;
+  --brand: #1f5f8b;
+  --brand-2: #2f86be;
+  --accent: #d9eefc;
+  --danger: #b3261e;
+  --shadow: 0 16px 40px rgba(20, 40, 60, 0.12);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top, rgba(47, 134, 190, 0.13), transparent 34%),
+    linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+button, input, textarea {
+  font: inherit;
+}
+button {
+  border: 0;
+  border-radius: 14px;
+  padding: 0.8rem 1rem;
+  background: #e8eef4;
+  color: var(--text);
+}
+button:active {
+  transform: translateY(1px);
+}
+#app {
+  min-height: 100%;
+  padding:
+    calc(12px + var(--safe-top))
+    calc(12px + var(--safe-right))
+    calc(14px + var(--safe-bottom))
+    calc(12px + var(--safe-left));
+}
+.shell {
+  min-height: calc(100vh - 24px - var(--safe-top) - var(--safe-bottom));
+  max-width: 920px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(216, 225, 234, 0.9);
+  border-radius: 28px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 249, 252, 0.92));
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.app-mark {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(31, 95, 139, 0.14);
+}
+.app-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.install-trigger {
+  position: relative;
+  cursor: pointer;
+}
+.install-trigger[hidden] {
+  display: none;
+}
+.help-trigger,
+.install-trigger {
+  border: 0;
+  padding: 0;
+  background: #fff;
+}
+.help-trigger {
+  cursor: pointer;
+}
+.help-trigger::after {
+  content: "i";
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1f5f8b;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+.install-trigger {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: #eef4fa;
+  color: var(--brand);
+  box-shadow: inset 0 0 0 1px rgba(31, 95, 139, 0.12);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.home-add-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.home-add-icon svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.title-block {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+.ghost {
+  background: rgba(31, 95, 139, 0.1);
+  color: var(--brand);
+}
+.primary {
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(31, 95, 139, 0.26);
+}
+.install-popover {
+  position: fixed;
+  top: calc(68px + var(--safe-top));
+  right: calc(16px + var(--safe-right));
+  width: min(260px, calc(100vw - 32px));
+  padding: 14px 14px 12px;
+  border: 1px solid rgba(31, 95, 139, 0.16);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  z-index: 60;
+}
+.help-popover {
+  left: calc(16px + var(--safe-left));
+  right: auto;
+}
+.install-popover[hidden] {
+  display: none;
+}
+.install-popover h2 {
+  margin: 0 0 6px;
+  font-size: 0.98rem;
+}
+.install-popover p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.install-popover button {
+  margin-top: 10px;
+  width: 100%;
+}
+.content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.toolbar {
+  display: grid;
+  gap: 10px;
+  padding: 12px 16px 0;
+}
+.toolbar .hint {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.search-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 11px 14px;
+  background: #fff;
+  color: var(--text);
+}
+.tag-filter {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.tag-filter::-webkit-scrollbar { display: none; }
+.tag-filter[hidden] { display: none; }
+.tag-filter button {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #eef4fa;
+  color: var(--brand);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.tag-filter button.active {
+  background: var(--brand);
+  color: #fff;
+}
+.editor-hint {
+  margin: -4px 0 12px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.list-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px 12px 18px;
+}
+.list {
+  display: grid;
+  gap: 10px;
+}
+.item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: 0 8px 20px rgba(25, 40, 55, 0.05);
+  touch-action: manipulation;
+}
+.item:active {
+  border-color: rgba(47, 134, 190, 0.35);
+  background: #f7fbff;
+}
+.item-main {
+  min-width: 0;
+}
+.item-name {
+  font-size: 1.02rem;
+  font-weight: 650;
+  margin: 0 0 5px;
+  word-break: break-word;
+}
+.item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef4fa;
+  color: var(--brand);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+.item-more {
+  background: #eef4fa;
+}
+.copy-fab {
+  position: fixed;
+  right: calc(18px + var(--safe-right));
+  bottom: calc(18px + var(--safe-bottom));
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  z-index: 30;
+  box-shadow: 0 14px 30px rgba(31, 95, 139, 0.32);
+}
+.copy-tip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(86px + var(--safe-bottom));
+  transform: translateX(-50%);
+  z-index: 40;
+  display: none;
+  padding: 10px 14px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(25, 35, 45, 0.92);
+  box-shadow: 0 14px 30px rgba(10, 20, 30, 0.25);
+}
+.copy-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: calc(20px + var(--safe-top)) calc(16px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(16px + var(--safe-left));
+  background: rgba(9, 18, 28, 0.42);
+}
+.copy-preview-backdrop.show {
+  display: flex;
+}
+.copy-preview {
+  width: min(560px, 100%);
+  max-height: min(78vh, 680px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.copy-preview h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+.copy-preview .copy-preview-note {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.copy-preview-content {
+  margin: 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f5f8fa;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.menu, .modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+}
+.menu.show, .modal-backdrop.show {
+  display: block;
+}
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+}
+.menu-sheet {
+  position: absolute;
+  min-width: 180px;
+  max-width: calc(100vw - 24px);
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 0;
+  padding: 14px 16px;
+  border-radius: 0;
+}
+.menu-item:not(:last-child) {
+  border-bottom: 1px solid #edf1f5;
+}
+.menu-item.delete {
+  color: var(--danger);
+}
+.empty {
+  padding: 36px 18px;
+  text-align: center;
+  color: var(--muted);
+}
+.modal-backdrop {
+  background: rgba(9, 18, 28, 0.42);
+}
+.modal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(86vh, 780px);
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-head {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h2 {
+  margin: 0;
+  font-size: 1.14rem;
+}
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 18px 4px;
+}
+.field {
+  margin-bottom: 14px;
+}
+.field label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.field input, .field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: #fff;
+  color: var(--text);
+}
+.field textarea {
+  resize: vertical;
+  min-height: 180px;
+}
+.modal-foot {
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.status-line {
+  padding: 0 16px 14px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.error {
+  color: var(--danger);
+}
+@media (min-width: 860px) {
+  .shell {
+    min-height: min(100vh - 24px - var(--safe-top) - var(--safe-bottom), 980px);
+  }
+  .list {
+    gap: 12px;
+  }
+}
+</style>
+</head>
+<body>
+  <div id="app">
+    <div class="shell">
+      <header class="header">
+        <button class="app-mark help-trigger" id="helpTrigger" type="button" aria-label="c-sendの使い方">
+          <img src="apple-touch-icon.png" alt="" />
+        </button>
+        <div class="title-block">
+          <h1 class="title" id="appTitle">c-send PWA v1.13</h1>
+        </div>
+        <div class="header-actions">
+          <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
+            <span class="home-add-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="m3.5 11 8.5-7 8.5 7"></path>
+                <path d="M5.5 10v9h13v-9"></path>
+                <path d="M10 19v-5h4v5"></path>
+                <path d="M18.5 5.5v5"></path>
+                <path d="M16 8h5"></path>
+              </svg>
+            </span>
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="toolbar">
+          <input class="search-input" id="searchInput" type="search" autocomplete="off" placeholder="タイトル・本文・タグを検索" aria-label="定型文を検索" />
+          <div class="tag-filter" id="tagFilter" hidden></div>
+          <div class="hint" id="countLabel">読み込み中...</div>
+        </div>
+
+        <div class="list-wrap">
+          <div id="list" class="list" role="list"></div>
+          <div id="empty" class="empty" hidden>定型文がありません。右下の「＋」から登録できます。</div>
+        </div>
+
+        <div class="status-line" id="statusLine"></div>
+      </div>
+    </div>
+  </div>
+
+  <button class="primary copy-fab" id="fabAdd" type="button" aria-label="定型文を追加">+</button>
+  <div class="copy-tip" id="copyTip" role="status" aria-live="polite">コピー完了</div>
+  <div class="copy-preview-backdrop" id="copyPreviewBackdrop" aria-hidden="true">
+    <div class="copy-preview" role="dialog" aria-modal="true" aria-labelledby="copyPreviewTitle">
+      <h2 id="copyPreviewTitle">コピーしました</h2>
+      <p class="copy-preview-note">内容を確認できます。タップすると一覧へ戻ります。</p>
+      <pre class="copy-preview-content" id="copyPreviewContent"></pre>
+    </div>
+  </div>
+  <div class="install-popover help-popover" id="helpPopover" hidden>
+    <h2>c-sendの使い方</h2>
+    <p>よく使う文章やAIプロンプトを登録しておき、一覧をタップするとコピーできます。右下の「＋」から追加し、タイトルとタグを設定できます。</p>
+    <button class="primary" id="helpCloseButton" type="button">閉じる</button>
+  </div>
+  <div class="install-popover" id="installPopover" hidden>
+    <h2>PWAとして使う</h2>
+    <p>iPhoneではSafariの共有ボタンから「ホーム画面に追加」を選んでください。Androidなどでインストールボタンが表示された場合は、ここから実行できます。</p>
+    <button class="primary" id="installCloseButton" type="button">閉じる</button>
+  </div>
+
+  <div class="menu" id="itemMenu" aria-hidden="true">
+    <div class="menu-backdrop" id="menuBackdrop"></div>
+    <div class="menu-sheet" id="menuSheet" role="menu">
+      <button class="menu-item" id="menuEdit" type="button">編集</button>
+      <button class="menu-item delete" id="menuDelete" type="button">削除</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="editorBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <div class="modal-head">
+        <h2 id="editorTitle">追加</h2>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="itemName">タイトル（省略可）</label>
+          <input id="itemName" type="text" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="itemTags">タグ（カンマ区切り）</label>
+          <input id="itemTags" type="text" autocomplete="off" placeholder="仕事, AI, 連絡" />
+        </div>
+        <div class="field">
+          <label for="itemValue">本文</label>
+          <p class="editor-hint" id="editorHint">コピー済みの内容を取り込みます。読み取れない場合はここへ貼り付けてください。</p>
+          <textarea id="itemValue"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="cancelEdit" type="button">キャンセル</button>
+        <button class="primary" id="saveEdit" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const APP_VERSION = "1.13";
+  const APP_NAME = "c-send PWA";
+  const DB_NAME = "c-send-pwa";
+  const DB_VERSION = 1;
+  const STORE_NAME = "app";
+  const STATE_KEY = "state";
+
+  const state = {
+    items: [],
+    editingIndex: -1,
+    menuIndex: -1,
+    menuX: 0,
+    menuY: 0,
+    longPressTimer: null,
+    longPressTarget: null,
+    copyTipTimer: null,
+    db: null,
+    deferredInstallPrompt: null,
+    searchText: "",
+    activeTag: ""
+  };
+
+  const els = {
+    list: document.getElementById("list"),
+    empty: document.getElementById("empty"),
+    countLabel: document.getElementById("countLabel"),
+    searchInput: document.getElementById("searchInput"),
+    tagFilter: document.getElementById("tagFilter"),
+    statusLine: document.getElementById("statusLine"),
+    appTitle: document.getElementById("appTitle"),
+    installTrigger: document.getElementById("installTrigger"),
+    helpTrigger: document.getElementById("helpTrigger"),
+    helpPopover: document.getElementById("helpPopover"),
+    helpCloseButton: document.getElementById("helpCloseButton"),
+    installPopover: document.getElementById("installPopover"),
+    installCloseButton: document.getElementById("installCloseButton"),
+    fabAdd: document.getElementById("fabAdd"),
+    copyTip: document.getElementById("copyTip"),
+    copyPreviewBackdrop: document.getElementById("copyPreviewBackdrop"),
+    copyPreviewTitle: document.getElementById("copyPreviewTitle"),
+    copyPreviewContent: document.getElementById("copyPreviewContent"),
+    itemMenu: document.getElementById("itemMenu"),
+    menuSheet: document.getElementById("menuSheet"),
+    menuBackdrop: document.getElementById("menuBackdrop"),
+    menuEdit: document.getElementById("menuEdit"),
+    menuDelete: document.getElementById("menuDelete"),
+    editorBackdrop: document.getElementById("editorBackdrop"),
+    editorTitle: document.getElementById("editorTitle"),
+    itemName: document.getElementById("itemName"),
+    itemTags: document.getElementById("itemTags"),
+    editorHint: document.getElementById("editorHint"),
+    itemValue: document.getElementById("itemValue"),
+    saveEdit: document.getElementById("saveEdit"),
+    cancelEdit: document.getElementById("cancelEdit")
+  };
+
+  function setStatus(text, isError) {
+    els.statusLine.textContent = text || "";
+    els.statusLine.className = isError ? "status-line error" : "status-line";
+  }
+
+  function openInstallPopover() {
+    els.installPopover.hidden = false;
+  }
+
+  function closeInstallPopover() {
+    els.installPopover.hidden = true;
+  }
+
+  function openHelpPopover() {
+    els.helpPopover.hidden = false;
+  }
+
+  function closeHelpPopover() {
+    els.helpPopover.hidden = true;
+  }
+
+  function updateInstallVisibility() {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    els.installTrigger.hidden = standalone;
+  }
+
+  function showCopyTip(text) {
+    els.copyTip.textContent = text || "コピー完了";
+    els.copyTip.style.display = "block";
+    if (state.copyTipTimer) {
+      clearTimeout(state.copyTipTimer);
+    }
+    state.copyTipTimer = setTimeout(() => {
+      els.copyTip.style.display = "none";
+      state.copyTipTimer = null;
+    }, 1300);
+  }
+
+  function openCopyPreview(item) {
+    els.copyPreviewTitle.textContent = item.name || "コピーしました";
+    els.copyPreviewContent.textContent = item.value || "";
+    els.copyPreviewBackdrop.classList.add("show");
+    els.copyPreviewBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  function closeCopyPreview() {
+    els.copyPreviewBackdrop.classList.remove("show");
+    els.copyPreviewBackdrop.setAttribute("aria-hidden", "true");
+  }
+
+  function openMenu(index, x, y) {
+    state.menuIndex = index;
+    const menu = els.itemMenu;
+    const sheet = els.menuSheet;
+    menu.classList.add("show");
+    menu.setAttribute("aria-hidden", "false");
+
+    const margin = 10;
+    const maxX = window.innerWidth - sheet.offsetWidth - margin;
+    const maxY = window.innerHeight - sheet.offsetHeight - margin;
+    sheet.style.left = Math.max(margin, Math.min(x, maxX)) + "px";
+    sheet.style.top = Math.max(margin, Math.min(y, maxY)) + "px";
+  }
+
+  function closeMenu() {
+    els.itemMenu.classList.remove("show");
+    els.itemMenu.setAttribute("aria-hidden", "true");
+    state.menuIndex = -1;
+  }
+
+  function openEditor(index, initialValue) {
+    state.editingIndex = index;
+    const editing = index >= 0;
+    els.editorTitle.textContent = editing ? "編集" : "追加";
+    els.itemName.value = editing ? (state.items[index].name || "") : "";
+    els.itemTags.value = editing ? (state.items[index].tags || []).join(", ") : "";
+    els.itemValue.value = editing ? (state.items[index].value || "") : (initialValue || "");
+    els.editorHint.textContent = editing
+      ? "タイトル・タグ・本文を編集できます。"
+      : "コピー済みの内容を取り込みます。読み取れない場合はここへ貼り付けてください。";
+    els.editorBackdrop.classList.add("show");
+    els.editorBackdrop.setAttribute("aria-hidden", "false");
+    setTimeout(() => els.itemName.focus(), 0);
+  }
+
+  function closeEditor() {
+    els.editorBackdrop.classList.remove("show");
+    els.editorBackdrop.setAttribute("aria-hidden", "true");
+    state.editingIndex = -1;
+  }
+
+  function normalizeItem(item) {
+    const tagsSource = Array.isArray(item && item.tags)
+      ? item.tags
+      : String(item && item.tags ? item.tags : "").split(",");
+    return {
+      name: String(item && item.name ? item.name : "").trim(),
+      value: String(item && item.value ? item.value : ""),
+      tags: tagsSource.map((tag) => String(tag).trim()).filter(Boolean),
+      type: Number(item && item.type === 0 ? 0 : 0),
+      usageCount: Math.max(0, Number(item && item.usageCount) || 0),
+      lastUsedAt: String(item && item.lastUsedAt ? item.lastUsedAt : "")
+    };
+  }
+
+  async function loadSamples() {
+    const response = await fetch("samples.json");
+    if (!response.ok) {
+      throw new Error(`samples.json の読み込みに失敗しました: ${response.status}`);
+    }
+    const samples = await response.json();
+    if (!Array.isArray(samples)) {
+      throw new Error("samples.json の形式が正しくありません。");
+    }
+    return samples.map(normalizeItem).filter((item) => item.name || item.value);
+  }
+
+  function buildAutoTitle(value) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (!text) return "";
+    return text.length > 20 ? text.substring(0, 20) + "…" : text;
+  }
+
+  function getVisibleItems() {
+    const query = state.searchText.toLocaleLowerCase();
+    return state.items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => {
+        const matchesTag = !state.activeTag || (item.tags || []).includes(state.activeTag);
+        if (!matchesTag) return false;
+        if (!query) return true;
+        const target = [item.name, item.value, ...(item.tags || [])].join(" ").toLocaleLowerCase();
+        return target.includes(query);
+      })
+      .sort((a, b) => {
+        const usageDiff = (b.item.usageCount || 0) - (a.item.usageCount || 0);
+        if (usageDiff) return usageDiff;
+        return String(b.item.lastUsedAt || "").localeCompare(String(a.item.lastUsedAt || ""));
+      });
+  }
+
+  function renderTagFilter() {
+    const tagStats = new Map();
+    state.items.forEach((item) => {
+      (item.tags || []).forEach((tag) => {
+        tagStats.set(tag, (tagStats.get(tag) || 0) + 1);
+      });
+    });
+    const tags = Array.from(tagStats.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja"));
+    els.tagFilter.innerHTML = "";
+    els.tagFilter.hidden = tags.length === 0;
+    tags.forEach(([tagText, count]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${tagText} ${count}`;
+      button.className = state.activeTag === tagText ? "active" : "";
+      button.addEventListener("click", () => {
+        state.activeTag = state.activeTag === tagText ? "" : tagText;
+        render();
+      });
+      els.tagFilter.appendChild(button);
+    });
+  }
+
+  function render() {
+    els.list.innerHTML = "";
+    const visibleItems = getVisibleItems();
+    els.countLabel.textContent = visibleItems.length === state.items.length
+      ? state.items.length + "件"
+      : `${visibleItems.length}件 / ${state.items.length}件`;
+    els.empty.hidden = visibleItems.length !== 0;
+    renderTagFilter();
+
+    visibleItems.forEach(({ item, index }) => {
+      const row = document.createElement("div");
+      row.className = "item";
+      row.setAttribute("role", "listitem");
+      row.dataset.index = String(index);
+
+      const main = document.createElement("div");
+      main.className = "item-main";
+
+      const name = document.createElement("p");
+      name.className = "item-name";
+      name.textContent = item.name || "";
+
+      main.appendChild(name);
+
+      if ((item.tags || []).length) {
+        const tagWrap = document.createElement("div");
+        tagWrap.className = "item-tags";
+        item.tags.forEach((tagText) => {
+          const tag = document.createElement("span");
+          tag.className = "tag";
+          tag.textContent = tagText;
+          tagWrap.appendChild(tag);
+        });
+        main.appendChild(tagWrap);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+
+      const moreBtn = document.createElement("button");
+      moreBtn.type = "button";
+      moreBtn.className = "icon-btn item-more";
+      moreBtn.setAttribute("aria-label", "メニュー");
+      moreBtn.textContent = "⋮";
+      moreBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openMenu(index, moreBtn.getBoundingClientRect().left, moreBtn.getBoundingClientRect().bottom + 8);
+      });
+
+      actions.appendChild(moreBtn);
+
+      row.appendChild(main);
+      row.appendChild(actions);
+
+      row.addEventListener("click", () => copyItem(index));
+      row.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        openMenu(index, ev.clientX, ev.clientY);
+      });
+      row.addEventListener("pointerdown", (ev) => {
+        if (ev.pointerType === "mouse" && ev.button !== 0) return;
+        startLongPress(index, ev.clientX, ev.clientY);
+      });
+      row.addEventListener("pointerup", cancelLongPress);
+      row.addEventListener("pointercancel", cancelLongPress);
+      row.addEventListener("pointerleave", cancelLongPress);
+
+      els.list.appendChild(row);
+    });
+  }
+
+  function startLongPress(index, x, y) {
+    cancelLongPress();
+    state.longPressTarget = { index, x, y };
+    state.longPressTimer = setTimeout(() => {
+      const target = state.longPressTarget;
+      if (target) {
+        openMenu(target.index, target.x + 18, target.y + 18);
+      }
+      cancelLongPress();
+    }, 520);
+  }
+
+  function cancelLongPress() {
+    if (state.longPressTimer) {
+      clearTimeout(state.longPressTimer);
+      state.longPressTimer = null;
+    }
+    state.longPressTarget = null;
+  }
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (err) {
+      // fallback below
+    }
+
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "readonly");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (err) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  async function copyItem(index) {
+    const item = state.items[index];
+    if (!item) return;
+    const ok = await copyText(item.value || "");
+    if (ok) {
+      item.usageCount = (item.usageCount || 0) + 1;
+      item.lastUsedAt = new Date().toISOString();
+      await saveState();
+      showCopyTip("コピー完了");
+      render();
+      setStatus(state.items.length + "件");
+      openCopyPreview(item);
+    } else {
+      setStatus("コピーできませんでした。", true);
+    }
+  }
+
+  async function readClipboardText() {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      throw new Error("Clipboard read is unavailable");
+    }
+    return await navigator.clipboard.readText();
+  }
+
+  async function addItem() {
+    closeMenu();
+    let initialValue = "";
+    let clipboardReadFailed = false;
+    try {
+      initialValue = await readClipboardText();
+    } catch (err) {
+      clipboardReadFailed = true;
+    }
+    openEditor(-1, initialValue);
+    if (clipboardReadFailed) {
+      els.editorHint.textContent = "クリップボードを読み取れませんでした。本文欄をタップして貼り付けてください。";
+    }
+  }
+
+  function editCurrent() {
+    if (state.menuIndex < 0) return;
+    const targetIndex = state.menuIndex;
+    closeMenu();
+    openEditor(targetIndex);
+  }
+
+  async function deleteCurrent() {
+    if (state.menuIndex < 0) return;
+    const targetIndex = state.menuIndex;
+    const target = state.items[targetIndex];
+    closeMenu();
+    if (!target) return;
+    if (!confirm(`「${target.name || ""}」を削除しますか？`)) return;
+    state.items.splice(targetIndex, 1);
+    await saveState();
+    render();
+  }
+
+  async function saveEditor() {
+    const name = els.itemName.value.trim();
+    const tags = String(els.itemTags.value || "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const value = els.itemValue.value;
+    const autoName = buildAutoTitle(value);
+    const finalName = name || autoName;
+    if (!value.trim()) {
+      alert("本文を入力してください。");
+      return;
+    }
+    if (!finalName) {
+      alert("タイトルまたは本文を入力してください。");
+      return;
+    }
+
+    if (state.editingIndex < 0) {
+      if (state.items.length >= 100) {
+        alert("データは100件までです。");
+        return;
+      }
+      state.items.push(normalizeItem({ name: finalName, value, tags, type: 0 }));
+    } else {
+      const previous = state.items[state.editingIndex];
+      state.items[state.editingIndex] = normalizeItem({
+        name: finalName,
+        value,
+        tags,
+        type: 0,
+        usageCount: previous.usageCount,
+        lastUsedAt: previous.lastUsedAt
+      });
+    }
+
+    await saveState();
+    render();
+    closeEditor();
+    showCopyTip("保存しました");
+  }
+
+  async function openDatabase() {
+    return await new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: "key" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function loadState() {
+    if (!state.db) {
+      state.db = await openDatabase();
+    }
+
+    const record = await new Promise((resolve, reject) => {
+      const tx = state.db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(STATE_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+
+    if (!record || !Array.isArray(record.items)) {
+      state.items = await loadSamples();
+      await saveState();
+      return;
+    }
+
+    state.items = record.items.map(normalizeItem).filter((item) => item.name || item.value);
+    if (state.items.length === 0) {
+      state.items = await loadSamples();
+      await saveState();
+    }
+  }
+
+  async function saveState() {
+    if (!state.db) {
+      state.db = await openDatabase();
+    }
+
+    const payload = {
+      key: STATE_KEY,
+      version: APP_VERSION,
+      items: state.items
+    };
+
+    await new Promise((resolve, reject) => {
+      const tx = state.db.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).put(payload);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    }).catch((err) => {
+      console.error(err);
+      setStatus("データを保存できませんでした。", true);
+    });
+  }
+
+  function updatePlatformLabel() {
+    els.appTitle.textContent = `${APP_NAME} v${APP_VERSION}`;
+  }
+
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("service-worker.js").catch((err) => {
+      console.warn("service worker registration failed", err);
+    });
+  }
+
+  function bindEvents() {
+    els.installTrigger.addEventListener("click", openInstallPopover);
+    els.helpTrigger.addEventListener("click", openHelpPopover);
+    els.installCloseButton.addEventListener("click", closeInstallPopover);
+    els.helpCloseButton.addEventListener("click", closeHelpPopover);
+    els.fabAdd.addEventListener("click", addItem);
+    els.copyPreviewBackdrop.addEventListener("click", closeCopyPreview);
+    els.searchInput.addEventListener("input", () => {
+      state.searchText = els.searchInput.value.trim();
+      render();
+    });
+    els.menuBackdrop.addEventListener("click", closeMenu);
+    els.menuEdit.addEventListener("click", editCurrent);
+    els.menuDelete.addEventListener("click", deleteCurrent);
+    els.cancelEdit.addEventListener("click", closeEditor);
+    els.saveEdit.addEventListener("click", saveEditor);
+    els.editorBackdrop.addEventListener("click", (ev) => {
+      if (ev.target === els.editorBackdrop) {
+        closeEditor();
+      }
+    });
+
+    window.addEventListener("beforeinstallprompt", (ev) => {
+      ev.preventDefault();
+      state.deferredInstallPrompt = ev;
+      els.installTrigger.hidden = false;
+      els.installCloseButton.textContent = "インストール";
+      els.installCloseButton.onclick = async () => {
+        if (state.deferredInstallPrompt) {
+          state.deferredInstallPrompt.prompt();
+          await state.deferredInstallPrompt.userChoice;
+          state.deferredInstallPrompt = null;
+        }
+        closeInstallPopover();
+      };
+    });
+
+    window.addEventListener("appinstalled", () => {
+      state.deferredInstallPrompt = null;
+      els.installTrigger.hidden = true;
+      closeInstallPopover();
+    });
+
+    document.addEventListener("click", (ev) => {
+      if (!els.installPopover.hidden && !els.installPopover.contains(ev.target) && !els.installTrigger.contains(ev.target)) {
+        closeInstallPopover();
+      }
+      if (!els.helpPopover.hidden && !els.helpPopover.contains(ev.target) && !els.helpTrigger.contains(ev.target)) {
+        closeHelpPopover();
+      }
+    });
+
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") {
+        closeMenu();
+        closeEditor();
+        closeCopyPreview();
+      }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "n") {
+        ev.preventDefault();
+        addItem();
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (els.itemMenu.classList.contains("show") && state.menuIndex >= 0) {
+        const rect = els.menuSheet.getBoundingClientRect();
+        openMenu(state.menuIndex, rect.left, rect.top);
+      }
+    });
+  }
+
+  async function bootstrap() {
+    document.title = `${APP_NAME} v${APP_VERSION}`;
+    updatePlatformLabel();
+    updateInstallVisibility();
+    bindEvents();
+    registerServiceWorker();
+    try {
+      await loadState();
+      render();
+      setStatus(state.items.length + "件");
+    } catch (err) {
+      console.error(err);
+      try {
+        state.items = await loadSamples();
+      } catch (sampleErr) {
+        console.error(sampleErr);
+        state.items = [];
+      }
+      render();
+      setStatus("データの読み込みに失敗しました。", true);
+    }
+  }
+
+  bootstrap();
+})();
+</script>
+</body>
+</html>

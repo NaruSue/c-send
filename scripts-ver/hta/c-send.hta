@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="IE=9" />
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<title>c-send</title>
+<hta:application
+  id="cSend"
+  applicationname="c-send"
+  icon="c-send.ico"
+  border="thin"
+  caption="yes"
+  maximizebutton="yes"
+  minimizebutton="yes"
+  showintaskbar="yes"
+  singleinstance="yes"
+  sysmenu="yes"
+/> 
+<style type="text/css">
+html, body { height: 100%; }
+body { margin: 0; background: #f4f4f4; color: #222; font-family: "MS UI Gothic", Meiryo, sans-serif; font-size: 15px; }
+#root { position: relative; height: 100%; }
+button { min-width: 70px; margin-right: 5px; padding: 4px 10px; }
+#list { position: absolute; top: 0; right: 0; bottom: 27px; left: 0; margin: 0; padding: 8px; overflow: auto; list-style: none; box-sizing: border-box; }
+#list li { padding: 8px 10px; margin-bottom: 4px; border: 1px solid transparent; background: #fff; cursor: default; white-space: pre-wrap; }
+#list li:hover { border-color: #99bbee; background: #eef5ff; }
+#list li.selected { border-color: #4d86c7; background: #dcecff; }
+#status { position: absolute; right: 0; bottom: 0; left: 0; height: 27px; padding: 4px 8px; color: #666; border-top: 1px solid #c8c8c8; background: #e9e9e9; box-sizing: border-box; }
+#contextMenu { position: absolute; display: none; z-index: 10; min-width: 120px; padding: 3px 0; border: 1px solid #777; background: #fff; box-shadow: 2px 2px 4px #888; }
+#contextMenu div { padding: 5px 14px; cursor: default; }
+#contextMenu div:hover { background: #dcecff; }
+#copyTip { position: absolute; display: none; z-index: 30; right: 12px; bottom: 39px; padding: 7px 12px; color: #fff; background: #333; border-radius: 3px; box-shadow: 1px 1px 3px #777; }
+#editor { position: absolute; display: none; z-index: 20; left: 8%; top: 8%; width: 84%; height: 84%; padding: 12px; border: 1px solid #777; background: #f8f8f8; box-shadow: 3px 3px 8px #777; box-sizing: border-box; }
+#editor h3 { margin: 4px 0 8px; }
+#editor label { display: block; margin: 5px 0 3px; }
+#editor input, #editor textarea { width: 100%; box-sizing: border-box; font-family: inherit; font-size: inherit; }
+#editor input { height: 25px; }
+#editor textarea { height: 100px; resize: none; }
+#editorButtons { padding-top: 8px; text-align: right; }
+</style>
+<script language="javascript" type="text/javascript">
+var items = [];
+var selectedIndex = -1;
+var editingIndex = -1;
+var appFolder = "";
+var dataPath = "";
+var settingPath = "";
+var copyTipTimer = null;
+var APP_VERSION = "1.0";
+
+function getFso() {
+  return new ActiveXObject("Scripting.FileSystemObject");
+}
+
+function getAppFolder() {
+  var path = unescape(window.location.pathname).replace(/\//g, "\\");
+  if (/^\\[A-Za-z]:/.test(path)) path = path.substring(1);
+  return getFso().GetParentFolderName(path);
+}
+
+function readUtf8(path) {
+  var stream = new ActiveXObject("ADODB.Stream");
+  stream.Type = 2;
+  stream.Charset = "utf-8";
+  stream.Open();
+  stream.LoadFromFile(path);
+  var text = stream.ReadText(-1);
+  stream.Close();
+  return text.replace(/^\uFEFF/, "");
+}
+
+function writeUtf8(path, text) {
+  var stream = new ActiveXObject("ADODB.Stream");
+  stream.Type = 2;
+  stream.Charset = "utf-8";
+  stream.Open();
+  stream.WriteText(text);
+  stream.Position = 0;
+  stream.SaveToFile(path, 2);
+  stream.Close();
+}
+
+function readSettings(path) {
+  var result = { left: 100, top: 100, width: 500, height: 700 };
+  var fso = getFso();
+  if (!fso.FileExists(path)) return result;
+  var lines = readUtf8(path).split(/\r?\n/);
+  var section = "";
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].replace(/^\s+|\s+$/g, "");
+    if (!line || line.charAt(0) === ";" || line.charAt(0) === "#") continue;
+    if (line.charAt(0) === "[" && line.charAt(line.length - 1) === "]") {
+      section = line.substring(1, line.length - 1).toLowerCase();
+      continue;
+    }
+    if (section !== "window") continue;
+    var equal = line.indexOf("=");
+    if (equal < 0) continue;
+    var key = line.substring(0, equal).replace(/^\s+|\s+$/g, "").toLowerCase();
+    var value = parseInt(line.substring(equal + 1), 10);
+    if (isNaN(value)) continue;
+    if (key === "left") result.left = value;
+    if (key === "top") result.top = value;
+    if (key === "width" && value >= 240) result.width = value;
+    if (key === "height" && value >= 180) result.height = value;
+  }
+  return result;
+}
+
+function saveSettings() {
+  var left = typeof window.screenLeft === "number" ? window.screenLeft : window.screenX;
+  var top = typeof window.screenTop === "number" ? window.screenTop : window.screenY;
+  var width = window.outerWidth || document.documentElement.offsetWidth;
+  var height = window.outerHeight || document.documentElement.offsetHeight;
+  var text = "[Window]\r\n" +
+    "left=" + left + "\r\n" +
+    "top=" + top + "\r\n" +
+    "width=" + width + "\r\n" +
+    "height=" + height + "\r\n";
+  try { writeUtf8(settingPath, text); } catch (e) { }
+}
+
+function loadData() {
+  var fso = getFso();
+  if (!fso.FileExists(dataPath)) {
+    items = [];
+    saveData();
+    return;
+  }
+  try {
+    var parsed = JSON.parse(readUtf8(dataPath));
+    if (!(parsed instanceof Array)) throw new Error("root is not an array");
+    items = parsed;
+  } catch (e) {
+    items = [];
+    setStatus("default.jsonを読み込めませんでした。", true);
+  }
+}
+
+function saveData() {
+  try {
+    writeUtf8(dataPath, JSON.stringify(items, null, 2));
+    setStatus(items.length + "件");
+  } catch (e) {
+    setStatus("default.jsonを保存できませんでした。", true);
+  }
+}
+
+function setStatus(text, isError) {
+  var status = document.getElementById("status");
+  status.innerText = text || "";
+  status.style.color = isError ? "#b00000" : "#666";
+}
+
+function showCopyTip() {
+  var tip = document.getElementById("copyTip");
+  tip.innerText = "コピー完了";
+  tip.style.display = "block";
+  if (copyTipTimer !== null) window.clearTimeout(copyTipTimer);
+  copyTipTimer = window.setTimeout(function () {
+    tip.style.display = "none";
+    copyTipTimer = null;
+  }, 1500);
+}
+
+function renderList() {
+  var list = document.getElementById("list");
+  list.innerHTML = "";
+  for (var i = 0; i < items.length; i++) {
+    var li = document.createElement("li");
+    li.innerText = items[i].name || "";
+    li.setAttribute("data-index", i);
+    if (i === selectedIndex) li.className = "selected";
+    li.onclick = (function (index) { return function () { selectAndCopy(index); }; })(i);
+    li.oncontextmenu = (function (index) { return function (event) { selectOnly(index); showContextMenu(event); return false; }; })(i);
+    list.appendChild(li);
+  }
+  setStatus(items.length + "件");
+}
+
+function selectOnly(index) {
+  selectedIndex = index;
+  renderList();
+}
+
+function selectAndCopy(index) {
+  selectOnly(index);
+  try {
+    window.clipboardData.setData("Text", items[index].value || "");
+    showCopyTip();
+    setStatus(items.length + "件");
+  } catch (e) {
+    setStatus("クリップボードへコピーできませんでした。", true);
+  }
+}
+
+function showContextMenu(event) {
+  event = event || window.event;
+  var menu = document.getElementById("contextMenu");
+  menu.style.left = event.clientX + "px";
+  menu.style.top = event.clientY + "px";
+  menu.style.display = "block";
+}
+
+function hideContextMenu() {
+  document.getElementById("contextMenu").style.display = "none";
+}
+
+function stopMenuEvent(event) {
+  event = event || window.event;
+  if (event) {
+    event.cancelBubble = true;
+    event.returnValue = false;
+  }
+}
+
+function contextAdd(event) {
+  stopMenuEvent(event || window.event);
+  openEditor(-1);
+}
+
+function contextEdit(event) {
+  stopMenuEvent(event || window.event);
+  if (selectedIndex >= 0) openEditor(selectedIndex);
+}
+
+function contextDelete(event) {
+  stopMenuEvent(event || window.event);
+  deleteSelected();
+}
+
+function layoutEditor() {
+  var editor = document.getElementById("editor");
+  if (editor.style.display === "none") return;
+  var textArea = document.getElementById("itemValue");
+  var buttons = document.getElementById("editorButtons");
+  var availableHeight = editor.clientHeight - textArea.offsetTop - buttons.offsetHeight - 18;
+  textArea.style.height = Math.max(80, availableHeight) + "px";
+}
+
+function openEditor(index) {
+  hideContextMenu();
+  if (index >= items.length) index = -1;
+  editingIndex = index;
+  document.getElementById("editorTitle").innerText = index < 0 ? "追加" : "編集";
+  document.getElementById("itemName").value = index < 0 ? "" : (items[index].name || "");
+  document.getElementById("itemValue").value = index < 0 ? "" : (items[index].value || "");
+  document.getElementById("editor").style.display = "block";
+  window.setTimeout(layoutEditor, 0);
+  document.getElementById("itemName").focus();
+}
+
+function closeEditor() {
+  document.getElementById("editor").style.display = "none";
+}
+
+function saveEditor() {
+  var name = document.getElementById("itemName").value.replace(/^\s+|\s+$/g, "");
+  var value = document.getElementById("itemValue").value;
+  if (!name) { alert("タイトルを入力してください。"); return; }
+  if (editingIndex < 0) {
+    if (items.length >= 100) { alert("データは100件までです。"); return; }
+    items.push({ name: name, value: value, type: 0 });
+    selectedIndex = items.length - 1;
+  } else {
+    items[editingIndex].name = name;
+    items[editingIndex].value = value;
+    selectedIndex = editingIndex;
+  }
+  saveData();
+  renderList();
+  closeEditor();
+}
+
+function deleteSelected() {
+  hideContextMenu();
+  if (selectedIndex < 0 || selectedIndex >= items.length) return;
+  if (!confirm("「" + (items[selectedIndex].name || "") + "」を削除しますか？")) return;
+  items.splice(selectedIndex, 1);
+  selectedIndex = -1;
+  saveData();
+  renderList();
+}
+
+function initialize() {
+  document.title = "c-send HTA v" + APP_VERSION;
+  appFolder = getAppFolder();
+  var fso = getFso();
+  dataPath = fso.BuildPath(appFolder, "default.json");
+  settingPath = fso.BuildPath(appFolder, "setting.ini");
+  var settings = readSettings(settingPath);
+  loadData();
+  renderList();
+  window.setTimeout(function () {
+    try { window.resizeTo(settings.width, settings.height); window.moveTo(settings.left, settings.top); } catch (e) { }
+  }, 100);
+}
+
+window.onload = initialize;
+window.onbeforeunload = saveSettings;
+window.onresize = layoutEditor;
+document.onclick = function () { hideContextMenu(); };
+</script>
+</head>
+<body>
+<div id="root">
+  <ul id="list"></ul>
+  <div id="status"></div>
+</div>
+<div id="contextMenu">
+  <div onmousedown="contextAdd(); return false;">追加</div>
+  <div onmousedown="contextEdit(); return false;">編集</div>
+  <div onmousedown="contextDelete(); return false;">削除</div>
+</div>
+<div id="copyTip"></div>
+<div id="editor">
+  <h3 id="editorTitle">追加</h3>
+  <label for="itemName">タイトル</label>
+  <input id="itemName" type="text" />
+  <label for="itemValue">本文</label>
+  <textarea id="itemValue"></textarea>
+  <div id="editorButtons">
+    <button onclick="saveEditor();">保存</button>
+    <button onclick="closeEditor();">キャンセル</button>
+  </div>
+</div>
+</body>
+</html>

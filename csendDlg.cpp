@@ -25,6 +25,31 @@ static bool IsHttpUrl(const CString& path)
 		path.Left(8).CompareNoCase(_T("https://")) == 0;
 }
 
+static bool IsJsonDataPath(const CString& source)
+{
+    CString path(source);
+    int suffix = path.FindOneOf(_T("?#"));
+    if (suffix >= 0) {
+        path = path.Left(suffix);
+    }
+    return path.GetLength() >= 5 && path.Right(5).CompareNoCase(_T(".json")) == 0;
+}
+
+static bool IsJsonContentType(const CString& contentType)
+{
+    CString value(contentType);
+    int parameter = value.Find(_T(';'));
+    if (parameter >= 0) {
+        value = value.Left(parameter);
+    }
+    value.Trim();
+    if (value.CompareNoCase(_T("application/json")) == 0) {
+        return true;
+    }
+    return value.Left(12).CompareNoCase(_T("application/")) == 0 &&
+        value.GetLength() > 17 && value.Right(5).CompareNoCase(_T("+json")) == 0;
+}
+
 static bool IsReadOnlyFilePath(const CString& path)
 {
 	DWORD attr = GetFileAttributes(path);
@@ -43,8 +68,9 @@ static bool IsSettingOn(const CString& value)
 }
 
 
-static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
+static bool DownloadUrlToTempFile(const CString& url, CString& tempPath, DataFileFormat& format)
 {
+    format = IsJsonDataPath(url) ? DATA_FILE_FORMAT_JSON : DATA_FILE_FORMAT_TEXT;
 	TCHAR tempDir[MAX_PATH] = { 0 };
 	if (GetTempPath(MAX_PATH, tempDir) == 0) {
 		return false;
@@ -81,6 +107,12 @@ static bool DownloadUrlToTempFile(const CString& url, CString& tempPath)
 		file.Close();
 		DeleteFile(tempFile);
 		return false;
+    }
+
+    TCHAR contentType[256] = { 0 };
+    DWORD contentTypeSize = sizeof(contentType);
+    if (HttpQueryInfo(hFile, HTTP_QUERY_CONTENT_TYPE, contentType, &contentTypeSize, NULL) && IsJsonContentType(contentType)) {
+        format = DATA_FILE_FORMAT_JSON;
     }
 
 	char buffer[4096];
@@ -1167,7 +1199,7 @@ void CCsendDlg::SaveData()
 	if (nSel == CB_ERR) return;
 
 	if (!m_SavePath.IsEmpty() && !m_bCurrentCategoryIsReadOnly) {
-		m_dataList.SaveAll(m_SavePath);
+		m_dataList.SaveAll(m_SavePath, m_currentDataFormat);
 	}
 
 	if (nSel != CB_ERR) {
@@ -1281,6 +1313,7 @@ void CCsendDlg::UpdateList() {
 	m_CList.ResetContent();
 	ShowListStatus(_T(""), FALSE);
 	m_bCurrentCategoryIsReadOnly = FALSE;
+    m_currentDataFormat = DATA_FILE_FORMAT_TEXT;
 
 	int crrCatIndex = m_CCombo.GetCurSel();
 	if (crrCatIndex < 0) {
@@ -1296,10 +1329,12 @@ void CCsendDlg::UpdateList() {
 
 	if (IsHttpUrl(fileName)) {
 		m_bCurrentCategoryIsReadOnly = TRUE;
-		CString tempPath;
-		if (DownloadUrlToTempFile(fileName, tempPath)) {
-			if (m_dataList.LoadAll(tempPath, &errorText)) {
+        CString tempPath;
+        DataFileFormat downloadedFormat = DATA_FILE_FORMAT_TEXT;
+        if (DownloadUrlToTempFile(fileName, tempPath, downloadedFormat)) {
+            if (m_dataList.LoadAll(tempPath, downloadedFormat, &errorText)) {
 				m_SavePath = fileName;
+                m_currentDataFormat = downloadedFormat;
 		    }
 			else {
 				loadError = TRUE;
@@ -1318,10 +1353,12 @@ void CCsendDlg::UpdateList() {
 	    }
     }
 	else {
-		CString targetPath = GetValidFilePath(fileName);
-		if (!targetPath.IsEmpty()) {
-			if (m_dataList.LoadAll(targetPath, &errorText)) {
+        CString targetPath = GetValidFilePath(fileName);
+        DataFileFormat localFormat = IsJsonDataPath(targetPath.IsEmpty() ? fileName : targetPath) ? DATA_FILE_FORMAT_JSON : DATA_FILE_FORMAT_TEXT;
+        if (!targetPath.IsEmpty()) {
+            if (m_dataList.LoadAll(targetPath, localFormat, &errorText)) {
 				m_SavePath = targetPath;
+                m_currentDataFormat = localFormat;
 				m_bCurrentCategoryIsReadOnly = IsReadOnlyFilePath(targetPath);
 		    }
 			else {
@@ -1335,6 +1372,7 @@ void CCsendDlg::UpdateList() {
 		else {
 			CString candidate = m_appPath + _T("\\") + fileName;
 			m_SavePath = candidate;
+                m_currentDataFormat = IsJsonDataPath(candidate) ? DATA_FILE_FORMAT_JSON : DATA_FILE_FORMAT_TEXT;
 			m_dataList.ClearAll();
 	    }
     }
