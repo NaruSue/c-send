@@ -38,7 +38,9 @@
 
 - `samples\jp\Git.txt`
 - `C:\Users\example\Documents\my-category.txt`
+- `C:\Users\example\Documents\my-category.json`
 - `https://example.com/category.txt`
+- `https://example.com/category.json`
 
 ## カテゴリ作成で迷いやすいところ
 
@@ -47,6 +49,7 @@
 - 同じカテゴリ名、同じ参照先は登録できません。
 - URL を指定した場合は、保存前に接続確認が行われます。
 - URL カテゴリは参照専用なので、一覧の中身は編集できません。
+- v1.9以降は、ローカルの `.json` ファイルと、JSON形式を返すURLをJSONデータとして扱います。
 
 ## 並べ替えと削除
 

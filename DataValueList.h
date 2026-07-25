@@ -1,10 +1,18 @@
 #pragma once
 #include <afxtempl.h>
+#include <string>
+#include <vector>
+
+enum DataFileFormat {
+    DATA_FILE_FORMAT_TEXT = 0,
+    DATA_FILE_FORMAT_JSON = 1
+};
 
 struct ItemData {
     CString name;
     CString value;
     int type;
+    std::vector<std::string> jsonExtraProperties;
     ItemData() : type(0) {}
 };
 
@@ -19,8 +27,8 @@ public:
     CDataValueList();
     ~CDataValueList();
 
-    bool LoadAll(CString txtPath, CString* pError = NULL);
-    void SaveAll(CString txtPath);
+    bool LoadAll(CString dataPath, DataFileFormat format, CString* pError = NULL);
+    void SaveAll(CString dataPath, DataFileFormat format);
 
     ItemData& Datas(int i);
     int GetCount() const;

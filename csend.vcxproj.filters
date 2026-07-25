@@ -24,6 +24,9 @@
     <ClCompile Include="InputBox.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="JsonDataFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="StdAfx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -58,6 +61,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="InputBox.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="JsonDataFile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="version.h">
