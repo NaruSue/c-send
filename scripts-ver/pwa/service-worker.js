@@ -1,4 +1,4 @@
-const CACHE_NAME = "c-send-pwa-v1.13";
+const CACHE_NAME = "c-send-pwa-v__PWA_VERSION__";
 const ASSETS = [
   "./",
   "./index.html",

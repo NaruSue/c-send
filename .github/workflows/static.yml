@@ -33,11 +33,19 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Prepare PWA artifact
+        shell: bash
+        run: |
+          set -eu
+          version="$(sed -n 's/^[[:space:]]*const APP_VERSION = "\(.*\)";/\1/p' scripts-ver/pwa/index.html)"
+          test -n "$version"
+          rm -rf _site
+          cp -R scripts-ver/pwa _site
+          sed -i "s/__PWA_VERSION__/$version/g" _site/service-worker.js
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: 'scripts-ver/pwa'
+          path: '_site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

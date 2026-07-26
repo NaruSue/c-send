@@ -61,7 +61,8 @@ button:active {
     calc(12px + var(--safe-left));
 }
 .shell {
-  min-height: calc(100vh - 24px - var(--safe-top) - var(--safe-bottom));
+  height: calc(100vh - 24px - var(--safe-top) - var(--safe-bottom));
+  height: calc(100dvh - 24px - var(--safe-top) - var(--safe-bottom));
   max-width: 920px;
   margin: 0 auto;
   display: flex;
@@ -215,6 +216,7 @@ button:active {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .toolbar {
   display: grid;
@@ -265,6 +267,7 @@ button:active {
   flex: 1 1 auto;
   min-height: 0;
   padding: 12px 12px 18px;
+  overflow-y: auto;
 }
 .list {
   display: grid;
@@ -335,14 +338,13 @@ button:active {
   background: #eef4fa;
 }
 .copy-fab {
-  position: fixed;
-  right: calc(18px + var(--safe-right));
-  bottom: calc(18px + var(--safe-bottom));
-  width: 60px;
-  height: 60px;
-  border-radius: 20px;
-  z-index: 30;
-  box-shadow: 0 14px 30px rgba(31, 95, 139, 0.32);
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 14px;
+  font-size: 1.4rem;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(31, 95, 139, 0.12);
 }
 .copy-tip {
   position: fixed;
@@ -544,6 +546,7 @@ button:active {
               </svg>
             </span>
           </button>
+          <button class="primary copy-fab" id="fabAdd" type="button" aria-label="定型文を追加">+</button>
         </div>
       </header>
 
@@ -564,7 +567,6 @@ button:active {
     </div>
   </div>
 
-  <button class="primary copy-fab" id="fabAdd" type="button" aria-label="定型文を追加">+</button>
   <div class="copy-tip" id="copyTip" role="status" aria-live="polite">コピー完了</div>
   <div class="copy-preview-backdrop" id="copyPreviewBackdrop" aria-hidden="true">
     <div class="copy-preview" role="dialog" aria-modal="true" aria-labelledby="copyPreviewTitle">
@@ -621,7 +623,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "1.13";
+  const APP_VERSION = "1.14";
   const APP_NAME = "c-send PWA";
   const DB_NAME = "c-send-pwa";
   const DB_VERSION = 1;
@@ -1138,6 +1140,11 @@ button:active {
     els.helpTrigger.addEventListener("click", openHelpPopover);
     els.installCloseButton.addEventListener("click", closeInstallPopover);
     els.helpCloseButton.addEventListener("click", closeHelpPopover);
+    ["pointerdown", "pointerup", "pointercancel", "touchstart", "touchend", "click"].forEach((eventName) => {
+      els.fabAdd.addEventListener(eventName, (ev) => {
+        ev.stopPropagation();
+      });
+    });
     els.fabAdd.addEventListener("click", addItem);
     els.copyPreviewBackdrop.addEventListener("click", closeCopyPreview);
     els.searchInput.addEventListener("input", () => {
