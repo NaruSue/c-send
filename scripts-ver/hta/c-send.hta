@@ -35,18 +35,22 @@ button { min-width: 70px; margin-right: 5px; padding: 4px 10px; }
 #editor label { display: block; margin: 5px 0 3px; }
 #editor input, #editor textarea { width: 100%; box-sizing: border-box; font-family: inherit; font-size: inherit; }
 #editor input { height: 25px; }
+#editor .mode-options { margin: 6px 0 0; }
+#editor .mode-options label { display: inline-block; margin: 0 12px 0 0; }
+#editor .mode-options input { width: auto; height: auto; }
 #editor textarea { height: 100px; resize: none; }
 #editorButtons { padding-top: 8px; text-align: right; }
 </style>
 <script language="javascript" type="text/javascript">
 var items = [];
+var dataDocument = null;
 var selectedIndex = -1;
 var editingIndex = -1;
 var appFolder = "";
 var dataPath = "";
 var settingPath = "";
 var copyTipTimer = null;
-var APP_VERSION = "1.0";
+var APP_VERSION = "1.1";
 
 function getFso() {
   return new ActiveXObject("Scripting.FileSystemObject");
@@ -120,26 +124,66 @@ function saveSettings() {
   try { writeUtf8(settingPath, text); } catch (e) { }
 }
 
+function trimText(value) {
+  return String(value == null ? "" : value).replace(/^\s+|\s+$/g, "");
+}
+
+function isIsoDateTime(value) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/.test(value);
+}
+
+function normalizeItem(item) {
+  if (!item || typeof item !== "object" || typeof item.name !== "string" ||
+      typeof item.value !== "string" || item.type !== 0) {
+    throw new Error("invalid item");
+  }
+  if (typeof item.mode === "undefined") item.mode = "plain";
+  if (item.mode !== "plain" && item.mode !== "template" && item.mode !== "counter") {
+    throw new Error("invalid mode");
+  }
+  if (!item.name) throw new Error("empty name");
+  return item;
+}
+
+function createEmptyDocument() {
+  return {
+    format: "c-send-pwa-backup",
+    version: 1,
+    createdAt: new Date().toISOString(),
+    items: []
+  };
+}
+
 function loadData() {
   var fso = getFso();
   if (!fso.FileExists(dataPath)) {
-    items = [];
+    dataDocument = createEmptyDocument();
+    items = dataDocument.items;
     saveData();
     return;
   }
   try {
     var parsed = JSON.parse(readUtf8(dataPath));
-    if (!(parsed instanceof Array)) throw new Error("root is not an array");
-    items = parsed;
+    if (!parsed || parsed.format !== "c-send-pwa-backup" || parsed.version !== 1 ||
+        typeof parsed.createdAt !== "string" || !isIsoDateTime(parsed.createdAt) ||
+        !(parsed.items instanceof Array) || parsed.items.length > 100) {
+      throw new Error("invalid document");
+    }
+    for (var i = 0; i < parsed.items.length; i++) normalizeItem(parsed.items[i]);
+    dataDocument = parsed;
+    items = parsed.items;
   } catch (e) {
     items = [];
+    dataDocument = null;
     setStatus("default.jsonを読み込めませんでした。", true);
   }
 }
 
 function saveData() {
   try {
-    writeUtf8(dataPath, JSON.stringify(items, null, 2));
+    if (!dataDocument) dataDocument = createEmptyDocument();
+    dataDocument.items = items;
+    writeUtf8(dataPath, JSON.stringify(dataDocument, null, 2));
     setStatus(items.length + "件");
   } catch (e) {
     setStatus("default.jsonを保存できませんでした。", true);
@@ -163,12 +207,203 @@ function showCopyTip() {
   }, 1500);
 }
 
+function makeItemLabel(item) {
+  var prefix = "";
+  if (item.mode === "template") prefix = "[T] ";
+  if (item.mode === "counter") prefix = "[C] ";
+  return prefix + (item.name || "");
+}
+
+function getClipboardText() {
+  return window.clipboardData.getData("Text") || "";
+}
+
+function parseTemplateArguments(text) {
+  var args = [];
+  var pos = 0;
+  text = trimText(text);
+  if (!text) return args;
+  while (pos < text.length) {
+    while (pos < text.length && /\s/.test(text.charAt(pos))) pos++;
+    if (pos >= text.length) throw new Error("テンプレートの引数形式が正しくありません。");
+    var value = "";
+    if (text.charAt(pos) === '"') {
+      pos++;
+      var closed = false;
+      while (pos < text.length) {
+        var c = text.charAt(pos++);
+        if (c === '"') { closed = true; break; }
+        if (c === "\\") {
+          if (pos >= text.length) throw new Error("テンプレートの引数形式が正しくありません。");
+          c = text.charAt(pos++);
+          if (c !== '"' && c !== "\\") throw new Error("テンプレートの引数形式が正しくありません。");
+        }
+        value += c;
+      }
+      if (!closed) throw new Error("テンプレートの引数形式が正しくありません。");
+    } else {
+      var start = pos;
+      while (pos < text.length && text.charAt(pos) !== ",") pos++;
+      value = trimText(text.substring(start, pos));
+      if (!value) throw new Error("テンプレートの引数形式が正しくありません。");
+    }
+    while (pos < text.length && /\s/.test(text.charAt(pos))) pos++;
+    args.push(value);
+    if (pos === text.length) break;
+    if (text.charAt(pos++) !== ",") throw new Error("テンプレートの引数形式が正しくありません。");
+    var next = pos;
+    while (next < text.length && /\s/.test(text.charAt(next))) next++;
+    if (next === text.length) throw new Error("テンプレートの引数形式が正しくありません。");
+  }
+  return args;
+}
+
+function formatDateValue(date, format) {
+  var result = "";
+  for (var i = 0; i < format.length;) {
+    var token = "";
+    if (format.substr(i, 4) === "yyyy") { token = String(date.getFullYear()); while (token.length < 4) token = "0" + token; i += 4; }
+    else if (format.substr(i, 2) === "MM") { token = String(date.getMonth() + 1); if (token.length < 2) token = "0" + token; i += 2; }
+    else if (format.substr(i, 2) === "dd") { token = String(date.getDate()); if (token.length < 2) token = "0" + token; i += 2; }
+    else if (format.substr(i, 2) === "HH") { token = String(date.getHours()); if (token.length < 2) token = "0" + token; i += 2; }
+    else if (format.substr(i, 2) === "mm") { token = String(date.getMinutes()); if (token.length < 2) token = "0" + token; i += 2; }
+    else if (format.substr(i, 2) === "ss") { token = String(date.getSeconds()); if (token.length < 2) token = "0" + token; i += 2; }
+    else { token = format.charAt(i++); }
+    result += token;
+  }
+  return result;
+}
+
+function evaluateDateCommand(args) {
+  if (args.length > 3) throw new Error("dateの引数が多すぎます。");
+  var format = args.length ? args[0] : "yyyy/MM/dd HH:mm:ss";
+  if (/[yMdhHms]/.test(format.replace(/yyyy|MM|dd|HH|mm|ss/g, ""))) {
+    throw new Error("dateの書式が正しくありません。");
+  }
+  if (args.length >= 2 && args[1] !== "current") throw new Error("dateの基準日時が正しくありません。");
+  var date = new Date();
+  if (args.length === 3) {
+    var match = /^([+-])(\d+)([smhdw])$/.exec(args[2]);
+    if (!match) throw new Error("dateの差分が正しくありません。");
+    var multiplier = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 }[match[3]];
+    var seconds = parseInt(match[2], 10) * multiplier;
+    if (!isFinite(seconds)) throw new Error("dateの差分が大きすぎます。");
+    date = new Date(date.getTime() + (match[1] === "+" ? seconds : -seconds) * 1000);
+  }
+  return formatDateValue(date, format);
+}
+
+function sortClipboard(descending) {
+  var text = getClipboardText().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var lines = text ? text.split("\n") : [];
+  lines.sort(function (left, right) {
+    if (left === right) return 0;
+    if (descending) return left < right ? 1 : -1;
+    return left < right ? -1 : 1;
+  });
+  return lines.join("\r\n");
+}
+
+function calculateExpression(text) {
+  var pos = 0;
+  function skipSpace() { while (pos < text.length && /\s/.test(text.charAt(pos))) pos++; }
+  function expression() {
+    var value = term();
+    while (true) {
+      skipSpace();
+      var op = text.charAt(pos);
+      if (op !== "+" && op !== "-") return value;
+      pos++;
+      var right = term();
+      value = op === "+" ? value + right : value - right;
+    }
+  }
+  function term() {
+    var value = factor();
+    while (true) {
+      skipSpace();
+      var op = text.charAt(pos);
+      if (op !== "*" && op !== "/") return value;
+      pos++;
+      var right = factor();
+      if (op === "/" && right === 0) throw new Error("0で除算できません。");
+      value = op === "*" ? value * right : value / right;
+    }
+  }
+  function factor() {
+    skipSpace();
+    var sign = 1;
+    if (text.charAt(pos) === "+" || text.charAt(pos) === "-") {
+      if (text.charAt(pos++) === "-") sign = -1;
+      return sign * factor();
+    }
+    if (text.charAt(pos) === "(") {
+      pos++;
+      var nested = expression();
+      skipSpace();
+      if (text.charAt(pos++) !== ")") throw new Error("括弧が対応していません。");
+      return sign * nested;
+    }
+    var number = /^[0-9]+(?:\.[0-9]+)?/.exec(text.substring(pos));
+    if (!number) throw new Error("数式が正しくありません。");
+    pos += number[0].length;
+    return parseFloat(number[0]);
+  }
+  var result = expression();
+  skipSpace();
+  if (pos !== text.length || !isFinite(result)) throw new Error("数式が正しくありません。");
+  return String(result);
+}
+
+function evaluateCommand(expression) {
+  expression = trimText(expression);
+  var command = expression;
+  var argumentText = "";
+  var open = expression.indexOf("(");
+  if (open >= 0) {
+    if (expression.charAt(expression.length - 1) !== ")") throw new Error("テンプレートの引数形式が正しくありません。");
+    command = trimText(expression.substring(0, open));
+    argumentText = expression.substring(open + 1, expression.length - 1);
+  }
+  var args = parseTemplateArguments(argumentText);
+  if (command === "date") return evaluateDateCommand(args);
+  if (args.length) throw new Error("このコマンドは引数を受け付けません。");
+  if (command === "clipboard") return getClipboardText();
+  if (command === "sort") return sortClipboard(false);
+  if (command === "sort_desc") return sortClipboard(true);
+  if (command === "calc") return calculateExpression(getClipboardText());
+  if (command === "json") return JSON.stringify(JSON.parse(getClipboardText()), null, 2);
+  if (command === "uri_encode") return encodeURIComponent(getClipboardText());
+  if (command === "uri_decode") return decodeURIComponent(getClipboardText());
+  throw new Error("未定義のテンプレートコマンドです: " + command);
+}
+
+function evaluateTemplate(source) {
+  var output = "";
+  var pos = 0;
+  while (pos < source.length) {
+    var open = source.indexOf("{{", pos);
+    if (open < 0) return output + source.substring(pos);
+    output += source.substring(pos, open);
+    var close = source.indexOf("}}", open + 2);
+    if (close < 0) throw new Error("テンプレートの閉じ括弧がありません。");
+    output += evaluateCommand(source.substring(open + 2, close));
+    pos = close + 2;
+  }
+  return output;
+}
+
+function resolveItemText(item) {
+  if (item.mode !== "template") return item.value || "";
+  return evaluateTemplate(item.value || "");
+}
+
 function renderList() {
   var list = document.getElementById("list");
   list.innerHTML = "";
   for (var i = 0; i < items.length; i++) {
     var li = document.createElement("li");
-    li.innerText = items[i].name || "";
+    li.innerText = makeItemLabel(items[i]);
     li.setAttribute("data-index", i);
     if (i === selectedIndex) li.className = "selected";
     li.onclick = (function (index) { return function () { selectAndCopy(index); }; })(i);
@@ -186,7 +421,8 @@ function selectOnly(index) {
 function selectAndCopy(index) {
   selectOnly(index);
   try {
-    window.clipboardData.setData("Text", items[index].value || "");
+    var text = resolveItemText(items[index]);
+    window.clipboardData.setData("Text", text);
     showCopyTip();
     setStatus(items.length + "件");
   } catch (e) {
@@ -245,6 +481,9 @@ function openEditor(index) {
   document.getElementById("editorTitle").innerText = index < 0 ? "追加" : "編集";
   document.getElementById("itemName").value = index < 0 ? "" : (items[index].name || "");
   document.getElementById("itemValue").value = index < 0 ? "" : (items[index].value || "");
+  var mode = index < 0 ? "plain" : (items[index].mode || "plain");
+  document.getElementById("modePlain").checked = mode === "plain";
+  document.getElementById("modeTemplate").checked = mode === "template";
   document.getElementById("editor").style.display = "block";
   window.setTimeout(layoutEditor, 0);
   document.getElementById("itemName").focus();
@@ -257,14 +496,19 @@ function closeEditor() {
 function saveEditor() {
   var name = document.getElementById("itemName").value.replace(/^\s+|\s+$/g, "");
   var value = document.getElementById("itemValue").value;
+  var plainMode = document.getElementById("modePlain").checked;
+  var templateMode = document.getElementById("modeTemplate").checked;
+  var mode = templateMode ? "template" : "plain";
+  if (!plainMode && !templateMode && editingIndex >= 0 && items[editingIndex].mode === "counter") mode = "counter";
   if (!name) { alert("タイトルを入力してください。"); return; }
   if (editingIndex < 0) {
     if (items.length >= 100) { alert("データは100件までです。"); return; }
-    items.push({ name: name, value: value, type: 0 });
+    items.push({ name: name, value: value, type: 0, mode: mode });
     selectedIndex = items.length - 1;
   } else {
     items[editingIndex].name = name;
     items[editingIndex].value = value;
+    items[editingIndex].mode = mode;
     selectedIndex = editingIndex;
   }
   saveData();
@@ -283,13 +527,14 @@ function deleteSelected() {
 }
 
 function initialize() {
-  document.title = "c-send HTA v" + APP_VERSION;
   appFolder = getAppFolder();
   var fso = getFso();
   dataPath = fso.BuildPath(appFolder, "default.json");
   settingPath = fso.BuildPath(appFolder, "setting.ini");
   var settings = readSettings(settingPath);
   loadData();
+  var categoryName = dataDocument && dataDocument.categoryName ? dataDocument.categoryName : fso.GetBaseName(dataPath);
+  document.title = "c-send HTA v" + APP_VERSION + " - " + categoryName;
   renderList();
   window.setTimeout(function () {
     try { window.resizeTo(settings.width, settings.height); window.moveTo(settings.left, settings.top); } catch (e) { }
@@ -319,6 +564,10 @@ document.onclick = function () { hideContextMenu(); };
   <input id="itemName" type="text" />
   <label for="itemValue">本文</label>
   <textarea id="itemValue"></textarea>
+  <div class="mode-options">
+    <label><input id="modePlain" type="radio" name="itemMode" value="plain" /> plain text</label>
+    <label><input id="modeTemplate" type="radio" name="itemMode" value="template" /> template</label>
+  </div>
   <div id="editorButtons">
     <button onclick="saveEditor();">保存</button>
     <button onclick="closeEditor();">キャンセル</button>

@@ -11,15 +11,29 @@ enum DataFileFormat {
 struct ItemData {
     CString name;
     CString value;
+    CString mode;
     int type;
     std::vector<std::string> jsonExtraProperties;
-    ItemData() : type(0) {}
+    ItemData() : mode(_T("plain")), type(0) {}
+};
+
+struct JsonFileMetadata {
+    CString createdAt;
+    CString categoryName;
+    std::vector<std::string> extraProperties;
+
+    void Clear() {
+        createdAt.Empty();
+        categoryName.Empty();
+        extraProperties.clear();
+    }
 };
 
 class CDataValueList
 {
 private:
     CArray<ItemData, ItemData&> m_arr;
+    JsonFileMetadata m_jsonMetadata;
 
 public:
     enum { MAX_ITEMS = 100, MAX_FILE_BYTES = 10 * 1024 * 1024 };
@@ -35,15 +49,19 @@ public:
 
     void MoveUp(int i);
     void MoveDown(int i);
-    void ClearAll() { m_arr.RemoveAll(); }
+    void ClearAll() {
+        m_arr.RemoveAll();
+        m_jsonMetadata.Clear();
+    }
 
-    bool Add(CString name, CString value) {
+    bool Add(CString name, CString value, CString mode = _T("plain")) {
         if (m_arr.GetSize() >= MAX_ITEMS) {
             return false;
         }
         ItemData data;
         data.name = name;
         data.value = value;
+        data.mode = mode;
         m_arr.Add(data);
         return true;
     }

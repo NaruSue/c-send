@@ -20,6 +20,8 @@ CInputBox::CInputBox(CWnd* pParent /*=NULL*/)
 	: CDialog(CInputBox::IDD, pParent)
 {
 	m_bViewOnly = FALSE;
+	m_bTemplateEnabled = TRUE;
+	m_Mode = _T("plain");
 	//{{AFX_DATA_INIT(CInputBox)
 		// メモ - ClassWizard はこの位置にマッピング用のマクロを追加または削除します。
 	//}}AFX_DATA_INIT
@@ -32,6 +34,8 @@ void CInputBox::DoDataExchange(CDataExchange* pDX)
 	//{{AFX_DATA_MAP(CInputBox)
 	DDX_Control(pDX, IDC_EDIT1, m_Edit);
 	DDX_Control(pDX, IDC_EDIT2, m_ETitle);
+	DDX_Control(pDX, IDC_RADIO_PLAIN, m_RadioPlain);
+	DDX_Control(pDX, IDC_RADIO_TEMPLATE, m_RadioTemplate);
 	//}}AFX_DATA_MAP
 }
 
@@ -54,6 +58,27 @@ void CInputBox::GetInputText(CString& title, CString& text )
 {
 	text = m_InputText;
 	title = m_InputTitle;
+}
+
+void CInputBox::SetMode(const CString& mode)
+{
+	m_Mode = mode;
+	if (m_Mode != _T("plain") && m_Mode != _T("template") && m_Mode != _T("counter")) {
+		m_Mode = _T("plain");
+	}
+}
+
+void CInputBox::GetMode(CString& mode) const
+{
+	mode = m_Mode;
+}
+
+void CInputBox::SetTemplateEnabled(BOOL enabled)
+{
+	m_bTemplateEnabled = enabled;
+	if (!m_bTemplateEnabled) {
+		m_Mode = _T("plain");
+	}
 }
 
 void CInputBox::SetWindowName( CString text )
@@ -80,6 +105,8 @@ void CInputBox::ApplyFontAndLayout()
 	SetFont(&m_dialogFont);
 	m_Edit.SetFont(&m_dialogFont);
 	m_ETitle.SetFont(&m_dialogFont);
+	m_RadioPlain.SetFont(&m_dialogFont);
+	m_RadioTemplate.SetFont(&m_dialogFont);
 	CWnd* pOK = GetDlgItem(IDOK);
 	if (pOK != NULL) {
 		pOK->SetFont(&m_dialogFont);
@@ -96,7 +123,7 @@ void CInputBox::ApplyFontAndLayout()
 		scale = 1.0;
 	}
 	if (scale != 1.0) {
-		const UINT ids[] = { IDC_EDIT1, IDC_EDIT2, IDOK, IDCANCEL };
+		const UINT ids[] = { IDC_EDIT1, IDC_EDIT2, IDC_RADIO_PLAIN, IDC_RADIO_TEMPLATE, IDOK, IDCANCEL };
 		ApplyScaledLayout(this, scale, scale, ids, _countof(ids));
 	}
 }
@@ -147,6 +174,13 @@ BOOL CInputBox::OnInitDialog()
 
 	SetWindowText(m_WindowName);
 
+	m_RadioPlain.SetCheck(m_Mode == _T("plain") ? BST_CHECKED : BST_UNCHECKED);
+	m_RadioTemplate.SetCheck(m_Mode == _T("template") ? BST_CHECKED : BST_UNCHECKED);
+	if (!m_bTemplateEnabled) {
+		m_RadioPlain.SetCheck(BST_CHECKED);
+		m_RadioTemplate.SetCheck(BST_UNCHECKED);
+		m_RadioTemplate.EnableWindow(FALSE);
+	}
 
 	if( m_bViewOnly ){
 		m_Edit.SetReadOnly(TRUE);
@@ -155,6 +189,8 @@ BOOL CInputBox::OnInitDialog()
 		if( pOK != NULL ){
 			pOK->EnableWindow(FALSE);
 		}
+		m_RadioPlain.EnableWindow(FALSE);
+		m_RadioTemplate.EnableWindow(FALSE);
 	}
 
 	if( m_InputText.GetLength() ){
@@ -200,6 +236,12 @@ void CInputBox::OnOK()
 	m_ETitle.GetWindowText(m_InputTitle);
 	if (m_InputTitle.IsEmpty()) {
 		m_InputTitle = m_InputText;
+	}
+	if (m_RadioPlain.GetCheck() == BST_CHECKED) {
+		m_Mode = _T("plain");
+	}
+	else if (m_RadioTemplate.GetCheck() == BST_CHECKED) {
+		m_Mode = _T("template");
 	}
 
 	CDialog::OnOK();

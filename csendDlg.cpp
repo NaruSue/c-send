@@ -11,6 +11,7 @@
 #include "categoryDlg.h"
 #include "ToastNotificationHelper.h"
 #include "IniTextUtil.h"
+#include "TemplateEngine.h"
 #include <wininet.h>
 
 #pragma comment(lib, "wininet.lib")
@@ -151,6 +152,36 @@ static CString MakeWindowTitle(const CString& base, BOOL isReadOnly)
 		title += _T(" [RO]");
     }
 	return title;
+}
+
+static CString MakeItemLabel(const ItemData& item)
+{
+	CString label;
+	if (item.mode == _T("template")) {
+		label = _T("[T] ");
+	}
+	else if (item.mode == _T("counter")) {
+		label = _T("[C] ");
+	}
+	label += item.name;
+	return label;
+}
+
+static bool ResolveItemText(const ItemData& item, CString& text)
+{
+	text = item.value;
+	if (item.mode != _T("template")) {
+		return true;
+	}
+
+	CString error;
+	if (!EvaluateTemplate(item.value, text, error)) {
+		CString message;
+		message.Format(_T("テンプレートを実行できませんでした。\r\n%s"), error);
+		AfxMessageBox(message, MB_OK | MB_ICONERROR);
+		return false;
+	}
+	return true;
 }
 // <--Make
 static CString MakeCategoryLabel(const CString& name, const CString& path)
@@ -428,7 +459,7 @@ void CCsendDlg::BuildTrayMenu(CMenu& cMenu)
 	int itemCount = m_dataList.GetCount();
 	if (itemCount > 0) {
 		for (int i = 0; i < itemCount && i <= (ID_TRAY_ITEM_MAX - ID_TRAY_ITEM_BASE); i++) {
-			CString itemName = m_dataList.Datas(i).name;
+			CString itemName = MakeItemLabel(m_dataList.Datas(i));
 			itemName.Replace(_T("&"), _T("&&"));
 			if (itemName.IsEmpty()) {
 				itemName = _T("(no items)");
@@ -716,8 +747,9 @@ void CCsendDlg::OnSelchangeClist()
 
 	// 1. まずインデックスがデータの範囲内かチェック
 	if (i < m_dataList.GetCount()) {
-		// 範囲内なら安全に .value を取得
-		text = m_dataList.Datas(i).value;
+		if (!ResolveItemText(m_dataList.Datas(i), text)) {
+			return;
+		}
 	    if (SendClipBoard(text)) {
 			ShowCopyFeedback(m_dataList.Datas(i).name);
 	    }
@@ -817,6 +849,8 @@ void CCsendDlg::OnDblclkClist()
 	CString InputWindowName(_T("内容確認"));
 
 	cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value );
+	cInput.SetMode(m_dataList.Datas(i).mode);
+	cInput.SetTemplateEnabled(m_currentDataFormat == DATA_FILE_FORMAT_JSON);
 	cInput.SetViewOnly( TRUE );
 	cInput.SetWindowName( InputWindowName );
 	cInput.DoModal();
@@ -1074,6 +1108,7 @@ void CCsendDlg::ChangeMessage()
     }
 
 	CInputBox cInput;	// メッセージ編集用のダイアログ
+	cInput.SetTemplateEnabled(m_currentDataFormat == DATA_FILE_FORMAT_JSON);
 	
 	// 現在選択されている文字列を取得します
 	int i=m_CList.GetCurSel();
@@ -1086,18 +1121,20 @@ void CCsendDlg::ChangeMessage()
     }
 	else{
 		cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value);	// メッセージ編集用のダイアログに現在選択されている文字列を設定します
+		cInput.SetMode(m_dataList.Datas(i).mode);
 		InputWindowName.LoadString( IDS_CHANGE );	// キャプションは「変更」を選びます
     }
 	cInput.SetWindowName( InputWindowName );	// キャプションを設定します
 
 	if (cInput.DoModal() == IDOK) {
-		CString title, text;
+		CString title, text, mode;
 		cInput.GetInputText(title, text);
+		cInput.GetMode(mode);
 
 		// 1. メモリ（m_dataList）を更新
 		if (flag) {
 			// 新規追加
-			if (!m_dataList.Add(title, text)) {
+			if (!m_dataList.Add(title, text, mode)) {
 			    AfxMessageBox(GetIniMessage(_T(""), _T("data_add_limit"), _T("データは100件までです。")));
 			    return;
 		    }
@@ -1106,6 +1143,7 @@ void CCsendDlg::ChangeMessage()
 			// 既存編集
 			m_dataList.Datas(i).name = title;
 			m_dataList.Datas(i).value = text;
+			m_dataList.Datas(i).mode = mode;
 	    }
 
 		// 2. 確定したメモリの内容をファイルへ物理保存
@@ -1128,7 +1166,10 @@ void CCsendDlg::ActivateListItem(int index)
         return;
     }
 
-    CString text = m_dataList.Datas(index).value;
+    CString text;
+    if (!ResolveItemText(m_dataList.Datas(index), text)) {
+        return;
+    }
     if (SendClipBoard(text)) {
         ShowCopyFeedback(m_dataList.Datas(index).name);
     }
@@ -1389,7 +1430,7 @@ void CCsendDlg::UpdateList() {
     }
 
 	for (int i = 0; i < m_dataList.GetCount(); i++) {
-		m_CList.AddString(m_dataList.Datas(i).name);
+		m_CList.AddString(MakeItemLabel(m_dataList.Datas(i)));
     }
 
 	SetWindowText(MakeWindowTitle(categoryName, m_bCurrentCategoryIsReadOnly));
