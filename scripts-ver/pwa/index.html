@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v1.15</title>
+<title>c-send PWA v1.16</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -449,6 +449,11 @@ button:active {
 .menu-item:not(:last-child) {
   border-bottom: 1px solid #edf1f5;
 }
+.menu-divider {
+  height: 1px;
+  margin: 4px 12px;
+  background: var(--border);
+}
 .menu-item.delete {
   color: var(--danger);
 }
@@ -514,6 +519,27 @@ button:active {
   resize: vertical;
   min-height: 180px;
 }
+.mode-options {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.mode-options > span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.mode-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+.mode-options input {
+  width: auto;
+}
 .modal-foot {
   padding: 14px 18px 18px;
   border-top: 1px solid var(--border);
@@ -547,7 +573,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v1.15</h1>
+          <h1 class="title" id="appTitle">c-send PWA v1.16</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -595,7 +621,8 @@ button:active {
   </div>
   <div class="install-popover help-popover" id="helpPopover" hidden>
     <h2>c-sendの使い方</h2>
-    <p>よく使う文章やAIプロンプトを登録しておき、一覧をタップするとコピーできます。右下の「＋」から追加し、タイトルとタグを設定できます。</p>
+    <p>よく使う文章やAIプロンプトを登録しておき、一覧をタップするとコピーできます。右下の「＋」から追加し、タイトル・タグ・テンプレートを設定できます。</p>
+    <p><a href="../../docs/template-usage.md" target="_blank" rel="noreferrer">テンプレートの使い方</a></p>
     <button class="primary" id="helpCloseButton" type="button">閉じる</button>
   </div>
   <div class="install-popover" id="installPopover" hidden>
@@ -608,11 +635,15 @@ button:active {
     <div class="menu-backdrop" id="appMenuBackdrop"></div>
     <div class="menu-sheet app-menu-sheet" role="menu" aria-label="c-sendメニュー">
       <button class="menu-item" id="appMenuHelp" type="button">使い方</button>
+      <div class="menu-divider" role="separator"></div>
+      <button class="menu-item" id="appMenuAddFile" type="button">ファイルから追加</button>
+      <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuBackup" type="button">バックアップ</button>
       <button class="menu-item" id="appMenuRestore" type="button">リストア</button>
     </div>
   </div>
   <input id="restoreFileInput" type="file" accept="application/json,.json" hidden />
+  <input id="addFileInput" type="file" accept="application/json,.json" multiple hidden />
 
   <div class="menu" id="itemMenu" aria-hidden="true">
     <div class="menu-backdrop" id="menuBackdrop"></div>
@@ -641,6 +672,11 @@ button:active {
           <p class="editor-hint" id="editorHint">コピー済みの内容を取り込みます。読み取れない場合はここへ貼り付けてください。</p>
           <textarea id="itemValue"></textarea>
         </div>
+        <div class="field mode-options">
+          <span>種類</span>
+          <label><input id="modePlain" type="radio" name="itemMode" value="plain" /> plain text</label>
+          <label><input id="modeTemplate" type="radio" name="itemMode" value="template" /> template</label>
+        </div>
       </div>
       <div class="modal-foot">
         <button id="cancelEdit" type="button">キャンセル</button>
@@ -651,7 +687,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "1.15";
+  const APP_VERSION = "1.16";
   const APP_NAME = "c-send PWA";
   const DB_NAME = "c-send-pwa";
   const DB_VERSION = 1;
@@ -689,9 +725,11 @@ button:active {
     appMenu: document.getElementById("appMenu"),
     appMenuBackdrop: document.getElementById("appMenuBackdrop"),
     appMenuHelp: document.getElementById("appMenuHelp"),
+    appMenuAddFile: document.getElementById("appMenuAddFile"),
     appMenuBackup: document.getElementById("appMenuBackup"),
     appMenuRestore: document.getElementById("appMenuRestore"),
     restoreFileInput: document.getElementById("restoreFileInput"),
+    addFileInput: document.getElementById("addFileInput"),
     installPopover: document.getElementById("installPopover"),
     installCloseButton: document.getElementById("installCloseButton"),
     fabAdd: document.getElementById("fabAdd"),
@@ -710,6 +748,8 @@ button:active {
     itemTags: document.getElementById("itemTags"),
     editorHint: document.getElementById("editorHint"),
     itemValue: document.getElementById("itemValue"),
+    modePlain: document.getElementById("modePlain"),
+    modeTemplate: document.getElementById("modeTemplate"),
     saveEdit: document.getElementById("saveEdit"),
     cancelEdit: document.getElementById("cancelEdit")
   };
@@ -768,7 +808,7 @@ button:active {
 
   function openCopyPreview(item) {
     els.copyPreviewTitle.textContent = item.name || "コピーしました";
-    els.copyPreviewContent.textContent = item.value || "";
+    els.copyPreviewContent.textContent = typeof item.lastCopiedValue === "string" ? item.lastCopiedValue : (item.value || "");
     els.copyPreviewBackdrop.classList.add("show");
     els.copyPreviewBackdrop.setAttribute("aria-hidden", "false");
   }
@@ -809,6 +849,9 @@ button:active {
     els.itemName.value = editing ? (state.items[index].name || "") : "";
     els.itemTags.value = editing ? (state.items[index].tags || []).join(", ") : "";
     els.itemValue.value = editing ? (state.items[index].value || "") : (initialValue || "");
+    const mode = editing ? (state.items[index].mode || "plain") : "plain";
+    els.modePlain.checked = mode === "plain";
+    els.modeTemplate.checked = mode === "template";
     els.editorHint.textContent = editing
       ? "タイトル・タグ・本文を編集できます。"
       : "コピー済みの内容を取り込みます。読み取れない場合はここへ貼り付けてください。";
@@ -827,14 +870,170 @@ button:active {
     const tagsSource = Array.isArray(item && item.tags)
       ? item.tags
       : String(item && item.tags ? item.tags : "").split(",");
-    return {
+    const mode = item && ["plain", "template", "counter"].includes(item.mode)
+      ? item.mode
+      : "plain";
+    return Object.assign({}, item || {}, {
       name: String(item && item.name ? item.name : "").trim(),
       value: String(item && item.value ? item.value : ""),
       tags: tagsSource.map((tag) => String(tag).trim()).filter(Boolean),
-      type: Number(item && item.type === 0 ? 0 : 0),
+      type: 0,
+      mode,
+      options: item && item.options && typeof item.options === "object" ? item.options : undefined,
+      sourceName: item && item.sourceName ? String(item.sourceName) : undefined,
       usageCount: Math.max(0, Number(item && item.usageCount) || 0),
       lastUsedAt: String(item && item.lastUsedAt ? item.lastUsedAt : "")
+    });
+  }
+
+  function templateArgs(text) {
+    if (!text.trim()) return [];
+    const args = [];
+    let position = 0;
+    while (position < text.length) {
+      while (/\s/.test(text[position] || "")) position += 1;
+      let value = "";
+      if (text[position] === "\"" || text[position] === "'") {
+        const quote = text[position++];
+        let closed = false;
+        while (position < text.length) {
+          const char = text[position++];
+          if (char === quote) { closed = true; break; }
+          if (char === "\\") {
+            if (position >= text.length) throw new Error("テンプレートの引数が正しくありません。");
+            value += text[position++];
+          } else {
+            value += char;
+          }
+        }
+        if (!closed) throw new Error("テンプレートの引数が正しくありません。");
+      } else {
+        const start = position;
+        while (position < text.length && text[position] !== ",") position += 1;
+        value = text.substring(start, position).trim();
+        if (!value) throw new Error("テンプレートの引数が正しくありません。");
+      }
+      args.push(value);
+      while (/\s/.test(text[position] || "")) position += 1;
+      if (position >= text.length) break;
+      if (text[position++] !== ",") throw new Error("テンプレートの引数が正しくありません。");
+      if (position >= text.length) throw new Error("テンプレートの引数が正しくありません。");
+    }
+    return args;
+  }
+
+  function dateText(date, format) {
+    const pad = (value) => String(value).padStart(2, "0");
+    return format
+      .replace(/yyyy/g, String(date.getFullYear()).padStart(4, "0"))
+      .replace(/MM/g, pad(date.getMonth() + 1))
+      .replace(/dd/g, pad(date.getDate()))
+      .replace(/HH/g, pad(date.getHours()))
+      .replace(/mm/g, pad(date.getMinutes()))
+      .replace(/ss/g, pad(date.getSeconds()));
+  }
+
+  function calculate(text) {
+    let position = 0;
+    const skip = () => { while (/\s/.test(text[position] || "")) position += 1; };
+    function expression() {
+      let value = term();
+      while (true) {
+        skip();
+        const operator = text[position];
+        if (operator !== "+" && operator !== "-") return value;
+        position += 1;
+        value = operator === "+" ? value + term() : value - term();
+      }
+    }
+    function term() {
+      let value = factor();
+      while (true) {
+        skip();
+        const operator = text[position];
+        if (operator !== "*" && operator !== "/") return value;
+        position += 1;
+        const right = factor();
+        if (operator === "/" && right === 0) throw new Error("0で除算できません。");
+        value = operator === "*" ? value * right : value / right;
+      }
+    }
+    function factor() {
+      skip();
+      if (text[position] === "+" || text[position] === "-") {
+        const negative = text[position++] === "-";
+        return (negative ? -1 : 1) * factor();
+      }
+      if (text[position] === "(") {
+        position += 1;
+        const value = expression();
+        skip();
+        if (text[position++] !== ")") throw new Error("括弧が対応していません。");
+        return value;
+      }
+      const match = text.substring(position).match(/^\d+(?:\.\d+)?/);
+      if (!match) throw new Error("数式が正しくありません。");
+      position += match[0].length;
+      return Number(match[0]);
+    }
+    const result = expression();
+    skip();
+    if (position !== text.length || !Number.isFinite(result)) throw new Error("数式が正しくありません。");
+    return String(result);
+  }
+
+  async function evaluateTemplate(source) {
+    let clipboard = null;
+    const getClipboard = async () => {
+      if (clipboard === null) clipboard = await readClipboardText();
+      return clipboard;
     };
+    const command = async (raw) => {
+      const match = raw.trim().match(/^([a-z_]+)(?:\((.*)\))?$/);
+      if (!match) throw new Error("テンプレートのコマンドが正しくありません。");
+      const name = match[1];
+      const args = templateArgs(match[2] || "");
+      if (name === "date") {
+        if (args.length > 3) throw new Error("dateの引数が多すぎます。");
+        const format = args[0] || "yyyy/MM/dd HH:mm:ss";
+        if (args[1] && args[1] !== "current") throw new Error("dateの基準日時が正しくありません。");
+        const date = new Date();
+        if (args[2]) {
+          const offset = args[2].match(/^([+-])(\d+)([smhdw])$/);
+          if (!offset) throw new Error("dateの差分が正しくありません。");
+          const seconds = Number(offset[2]) * { s: 1, m: 60, h: 3600, d: 86400, w: 604800 }[offset[3]];
+          date.setTime(date.getTime() + (offset[1] === "+" ? seconds : -seconds) * 1000);
+        }
+        return dateText(date, format);
+      }
+      if (args.length) throw new Error(`${name}は引数を受け付けません。`);
+      const text = await getClipboard();
+      if (name === "clipboard") return text;
+      if (name === "sort" || name === "sort_desc") {
+        return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").sort((a, b) => name === "sort_desc" ? b.localeCompare(a) : a.localeCompare(b)).join("\r\n");
+      }
+      if (name === "calc") return calculate(text);
+      if (name === "json") return JSON.stringify(JSON.parse(text), null, 2);
+      if (name === "uri_encode") return encodeURIComponent(text);
+      if (name === "uri_decode") return decodeURIComponent(text);
+      throw new Error(`未定義のテンプレートコマンドです: ${name}`);
+    };
+    const parts = [];
+    let position = 0;
+    while (position < source.length) {
+      const open = source.indexOf("{{", position);
+      if (open < 0) { parts.push(source.substring(position)); break; }
+      parts.push(source.substring(position, open));
+      const close = source.indexOf("}}", open + 2);
+      if (close < 0) throw new Error("テンプレートの閉じ括弧がありません。");
+      parts.push(await command(source.substring(open + 2, close)));
+      position = close + 2;
+    }
+    return parts.join("");
+  }
+
+  async function resolveItemText(item) {
+    return item.mode === "template" ? await evaluateTemplate(item.value || "") : (item.value || "");
   }
 
   function backupFileName() {
@@ -862,16 +1061,28 @@ button:active {
     showCopyTip("バックアップしました");
   }
 
+  function validatePayload(payload) {
+    if (!payload || payload.format !== "c-send-pwa-backup" || payload.version !== 1 ||
+        typeof payload.createdAt !== "string" || Number.isNaN(Date.parse(payload.createdAt)) ||
+        !Array.isArray(payload.items)) {
+      throw new Error("JSONファイルの形式が正しくありません。");
+    }
+    payload.items.forEach((item) => {
+      if (!item || typeof item !== "object" || typeof item.name !== "string" || !item.name.trim() ||
+          typeof item.value !== "string" || item.type !== 0 ||
+          (item.mode !== undefined && !["plain", "template", "counter"].includes(item.mode)) ||
+          (item.tags !== undefined && (!Array.isArray(item.tags) || item.tags.some((tag) => typeof tag !== "string")))) {
+        throw new Error("JSONファイルの項目が正しくありません。");
+      }
+    });
+    return payload;
+  }
+
   async function restoreFromFile(file) {
     if (!file) return;
     try {
       const payload = JSON.parse(await file.text());
-      if (!payload || payload.format !== "c-send-pwa-backup" || payload.version !== 1 || !Array.isArray(payload.items)) {
-        throw new Error("バックアップファイルの形式が正しくありません。");
-      }
-      if (payload.items.length > 100 || payload.items.some((item) => !item || typeof item !== "object" || typeof item.name !== "string" || typeof item.value !== "string")) {
-        throw new Error("バックアップデータの内容が正しくありません。");
-      }
+      validatePayload(payload);
       if (!confirm(`${payload.items.length}件のデータで現在のデータを置き換えますか？`)) return;
 
       const previousItems = state.items;
@@ -902,16 +1113,47 @@ button:active {
     els.restoreFileInput.click();
   }
 
+  function chooseAddFile() {
+    closeAppMenu();
+    els.addFileInput.click();
+  }
+
+  async function addFiles(files) {
+    if (!files || !files.length) return;
+    try {
+      const imported = [];
+      for (const file of files) {
+        const payload = validatePayload(JSON.parse(await file.text()));
+        payload.items.forEach((item) => {
+          const normalized = normalizeItem(item);
+          if (!normalized.sourceName) normalized.sourceName = file.name;
+          imported.push(normalized);
+        });
+      }
+      if (!imported.length) throw new Error("追加できる項目がありません。");
+      state.items = state.items.concat(imported);
+      const saved = await saveState();
+      if (!saved) throw new Error("データを保存できませんでした。");
+      render();
+      setStatus(`${imported.length}件追加（全${state.items.length}件）`);
+      showCopyTip("ファイルから追加しました");
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || "ファイルの追加に失敗しました。", true);
+      alert(err.message || "ファイルの追加に失敗しました。");
+    } finally {
+      els.addFileInput.value = "";
+    }
+  }
+
   async function loadSamples() {
     const response = await fetch("samples.json");
     if (!response.ok) {
       throw new Error(`samples.json の読み込みに失敗しました: ${response.status}`);
     }
     const samples = await response.json();
-    if (!Array.isArray(samples)) {
-      throw new Error("samples.json の形式が正しくありません。");
-    }
-    return samples.map(normalizeItem).filter((item) => item.name || item.value);
+    const payload = validatePayload(samples);
+    return payload.items.map(normalizeItem).filter((item) => item.name || item.value);
   }
 
   function buildAutoTitle(value) {
@@ -982,7 +1224,8 @@ button:active {
 
       const name = document.createElement("p");
       name.className = "item-name";
-      name.textContent = item.name || "";
+      const modePrefix = item.mode === "template" ? "[T] " : item.mode === "counter" ? "[C] " : "";
+      name.textContent = modePrefix + (item.name || "");
 
       main.appendChild(name);
 
@@ -1083,10 +1326,19 @@ button:active {
   async function copyItem(index) {
     const item = state.items[index];
     if (!item) return;
-    const ok = await copyText(item.value || "");
+    let text;
+    try {
+      text = await resolveItemText(item);
+    } catch (err) {
+      setStatus(err.message || "テンプレートを評価できませんでした。", true);
+      alert(err.message || "テンプレートを評価できませんでした。");
+      return;
+    }
+    const ok = await copyText(text);
     if (ok) {
       item.usageCount = (item.usageCount || 0) + 1;
       item.lastUsedAt = new Date().toISOString();
+      item.lastCopiedValue = text;
       await saveState();
       showCopyTip("コピー完了");
       render();
@@ -1145,6 +1397,7 @@ button:active {
       .map((tag) => tag.trim())
       .filter(Boolean);
     const value = els.itemValue.value;
+    const mode = els.modeTemplate.checked ? "template" : "plain";
     const autoName = buildAutoTitle(value);
     const finalName = name || autoName;
     if (!value.trim()) {
@@ -1157,11 +1410,7 @@ button:active {
     }
 
     if (state.editingIndex < 0) {
-      if (state.items.length >= 100) {
-        alert("データは100件までです。");
-        return;
-      }
-      state.items.push(normalizeItem({ name: finalName, value, tags, type: 0 }));
+      state.items.push(normalizeItem({ name: finalName, value, tags, type: 0, mode }));
     } else {
       const previous = state.items[state.editingIndex];
       state.items[state.editingIndex] = normalizeItem({
@@ -1169,6 +1418,9 @@ button:active {
         value,
         tags,
         type: 0,
+        mode,
+        options: previous.options,
+        sourceName: previous.sourceName,
         usageCount: previous.usageCount,
         lastUsedAt: previous.lastUsedAt
       });
@@ -1266,9 +1518,11 @@ button:active {
       ev.stopPropagation();
       openHelpPopover();
     });
+    els.appMenuAddFile.addEventListener("click", chooseAddFile);
     els.appMenuBackup.addEventListener("click", backupState);
     els.appMenuRestore.addEventListener("click", chooseRestoreFile);
     els.restoreFileInput.addEventListener("change", () => restoreFromFile(els.restoreFileInput.files[0]));
+    els.addFileInput.addEventListener("change", () => addFiles(els.addFileInput.files));
     ["pointerdown", "pointerup", "pointercancel", "touchstart", "touchend", "click"].forEach((eventName) => {
       els.fabAdd.addEventListener(eventName, (ev) => {
         ev.stopPropagation();

@@ -140,6 +140,7 @@
     <ClCompile Include="ClipboardTipWnd.cpp" />
     <ClCompile Include="InputBox.cpp" />
     <ClCompile Include="JsonDataFile.cpp" />
+    <ClCompile Include="TemplateEngine.cpp" />
     <ClCompile Include="ToastNotificationHelper.cpp" />
     <ClCompile Include="StdAfx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -164,6 +165,7 @@
     <ClInclude Include="ClipboardTipWnd.h" />
     <ClInclude Include="InputBox.h" />
     <ClInclude Include="JsonDataFile.h" />
+    <ClInclude Include="TemplateEngine.h" />
     <ClInclude Include="ToastNotificationHelper.h" />
     <ClInclude Include="version.h" />
     <ClInclude Include="resource.h" />
