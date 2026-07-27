@@ -8,6 +8,7 @@ Windows 標準の `mshta.exe` で動く、c-send の HTA 版です。
 
 - 定型文の一覧表示
 - 一覧をクリックして本文をクリップボードへコピー
+- テンプレート本文の評価とコピー
 - 定型文の追加
 - 定型文の編集
 - 定型文の削除
@@ -47,6 +48,8 @@ Windows 標準の `mshta.exe` で動く、c-send の HTA 版です。
 3. メニューから「編集」を選びます。
 4. タイトルや本文を修正して保存します。
 
+テンプレートを使う場合は、本文入力欄の下で `template` を選択してください。テンプレートの記法と使用例は [テンプレートの使い方](../../docs/template-usage.md) を参照してください。
+
 ### 削除する
 
 1. 削除したい項目を選択します。
@@ -72,25 +75,34 @@ scripts-ver/hta/
 
 ### `default.json`
 
-定型文のデータ本体です。UTF-8 の JSON 形式で保存します。
+定型文のデータ本体です。UTF-8 の共通 JSON 形式で保存します。詳しくは [共通JSONデータ形式仕様](../../docs/data-file-spec.md) を参照してください。
 
-1件ごとに、次の値を持ちます。
+ルートに `format`、`version`、`createdAt`、`items` を持ち、1件ごとに次の値を持ちます。
 
 - `name`: 一覧に表示するタイトル
 - `value`: コピーする本文
 - `type`: データ種別。初期版では `0` のみ
+- `mode`: `plain` または `template`
 
 例:
 
 ```json
-[
-  {
-    "name": "Git Status",
-    "value": "git status",
-    "type": 0
-  }
-]
+{
+  "format": "c-send-pwa-backup",
+  "version": 1,
+  "createdAt": "2026-07-27T00:00:00.000Z",
+  "items": [
+    {
+      "name": "現在日時",
+      "value": "実行日時: {{date(\"yyyy/MM/dd HH:mm:ss\")}}",
+      "type": 0,
+      "mode": "template"
+    }
+  ]
+}
 ```
+
+テンプレート項目は一覧で `[T]` と表示され、クリック時に本文を評価します。旧形式の配列JSONは受け付けません。
 
 ### `setting.ini`
 

@@ -13,12 +13,17 @@ public:
 	CInputBox(CWnd* pParent = NULL);   // 標準のコンストラクタ
 	void GetInputText( CString& title, CString& text);
 	void SetInputText( CString& title, CString& text);
+	void GetMode(CString& mode) const;
+	void SetMode(const CString& mode);
+	void SetTemplateEnabled(BOOL enabled);
 
 // ダイアログ データ
 	//{{AFX_DATA(CInputBox)
 	enum { IDD = IDD_DIALOG1 };
 	CEdit	m_Edit;
 	CEdit	m_ETitle;
+	CButton	m_RadioPlain;
+	CButton	m_RadioTemplate;
 	//}}AFX_DATA
 
 
@@ -43,6 +48,8 @@ private:
 	CString m_InputText;
 	CString m_InputTitle;
 	CString m_WindowName;
+	CString m_Mode;
 	CFont m_dialogFont;
 	BOOL m_bViewOnly;
+	BOOL m_bTemplateEnabled;
 };

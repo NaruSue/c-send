@@ -56,6 +56,18 @@ static bool CStringToUtf8(const CString& input, std::string& output)
     return WideCharToMultiByte(CP_UTF8, 0, wideText, wideLength, &output[0], utf8Length, NULL, NULL) > 0;
 }
 
+static bool IsIso8601DateTime(const std::string& value)
+{
+    if (value.size() < 19) return false;
+    const size_t digitPositions[] = { 0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18 };
+    for (size_t i = 0; i < _countof(digitPositions); ++i) {
+        char c = value[digitPositions[i]];
+        if (c < '0' || c > '9') return false;
+    }
+    return value[4] == '-' && value[7] == '-' && (value[10] == 'T' || value[10] == 't') &&
+        value[13] == ':' && value[16] == ':';
+}
+
 static void AppendUtf8CodePoint(std::string& output, unsigned int codePoint)
 {
     if (codePoint <= 0x7F) {
@@ -83,20 +95,57 @@ class JsonDataParser
 public:
     explicit JsonDataParser(const std::string& text) : m_text(text), m_pos(0) {}
 
-    bool Parse(CArray<ItemData, ItemData&>& loaded)
+    bool Parse(CArray<ItemData, ItemData&>& loaded, JsonFileMetadata& metadata)
     {
-        if (!Consume('[')) return false;
-        if (Consume(']')) return Finish();
+        if (!Consume('{')) return false;
+
+        bool hasFormat = false;
+        bool hasVersion = false;
+        bool hasCreatedAt = false;
+        bool hasItems = false;
+        bool hasCategoryName = false;
+        if (Consume('}')) return false;
 
         while (true) {
-            ItemData item;
-            if (!ParseItem(item)) return false;
-            if (loaded.GetSize() >= CDataValueList::MAX_ITEMS) return false;
-            loaded.Add(item);
+            SkipSpace();
+            size_t propertyStart = m_pos;
+            std::string key;
+            if (!ParseString(key) || !Consume(':')) return false;
 
-            if (Consume(']')) return Finish();
+            if (key == "format") {
+                std::string value;
+                if (hasFormat || !ParseString(value) || value != "c-send-pwa-backup") return false;
+                hasFormat = true;
+            }
+            else if (key == "version") {
+                int version = 0;
+                if (hasVersion || !ParseInteger(version) || version != 1) return false;
+                hasVersion = true;
+            }
+            else if (key == "createdAt") {
+                std::string value;
+                if (hasCreatedAt || !ParseString(value) || !IsIso8601DateTime(value) ||
+                    !Utf8ToCString(value, metadata.createdAt)) return false;
+                hasCreatedAt = true;
+            }
+            else if (key == "categoryName") {
+                std::string value;
+                if (hasCategoryName || !ParseString(value) || !Utf8ToCString(value, metadata.categoryName)) return false;
+                hasCategoryName = true;
+            }
+            else if (key == "items") {
+                if (hasItems || !ParseItems(loaded)) return false;
+                hasItems = true;
+            }
+            else {
+                if (!SkipValue()) return false;
+                metadata.extraProperties.push_back(m_text.substr(propertyStart, m_pos - propertyStart));
+            }
+
+            if (Consume('}')) break;
             if (!Consume(',')) return false;
         }
+        return hasFormat && hasVersion && hasCreatedAt && hasItems && Finish();
     }
 
 private:
@@ -269,12 +318,41 @@ private:
         return SkipNumber();
     }
 
+    bool ParseStringArray()
+    {
+        if (!Consume('[')) return false;
+        if (Consume(']')) return true;
+        while (true) {
+            std::string ignored;
+            if (!ParseString(ignored)) return false;
+            if (Consume(']')) return true;
+            if (!Consume(',')) return false;
+        }
+    }
+
+    bool ParseItems(CArray<ItemData, ItemData&>& loaded)
+    {
+        if (!Consume('[')) return false;
+        if (Consume(']')) return true;
+
+        while (true) {
+            ItemData item;
+            if (!ParseItem(item)) return false;
+            if (loaded.GetSize() >= CDataValueList::MAX_ITEMS) return false;
+            loaded.Add(item);
+
+            if (Consume(']')) return true;
+            if (!Consume(',')) return false;
+        }
+    }
+
     bool ParseItem(ItemData& item)
     {
         if (!Consume('{')) return false;
         bool hasName = false;
         bool hasValue = false;
         bool hasType = false;
+        bool hasMode = false;
         if (Consume('}')) return false;
 
         while (true) {
@@ -294,8 +372,38 @@ private:
                 hasValue = true;
             }
             else if (key == "type") {
-                if (hasType || !ParseInteger(item.type)) return false;
+                if (hasType || !ParseInteger(item.type) || item.type != 0) return false;
                 hasType = true;
+            }
+            else if (key == "mode") {
+                std::string value;
+                if (hasMode || !ParseString(value) || !Utf8ToCString(value, item.mode)) return false;
+                if (item.mode != _T("plain") && item.mode != _T("template") && item.mode != _T("counter")) return false;
+                hasMode = true;
+            }
+            else if (key == "options") {
+                SkipSpace();
+                if (m_pos >= m_text.size() || m_text[m_pos] != '{' || !SkipValue()) return false;
+                item.jsonExtraProperties.push_back(m_text.substr(propertyStart, m_pos - propertyStart));
+            }
+            else if (key == "tags") {
+                if (!ParseStringArray()) return false;
+                item.jsonExtraProperties.push_back(m_text.substr(propertyStart, m_pos - propertyStart));
+            }
+            else if (key == "usageCount") {
+                int usageCount = 0;
+                if (!ParseInteger(usageCount) || usageCount < 0) return false;
+                item.jsonExtraProperties.push_back(m_text.substr(propertyStart, m_pos - propertyStart));
+            }
+            else if (key == "lastUsedAt") {
+                std::string value;
+                if (!ParseString(value) || (!value.empty() && !IsIso8601DateTime(value))) return false;
+                item.jsonExtraProperties.push_back(m_text.substr(propertyStart, m_pos - propertyStart));
+            }
+            else if (key == "sourceName") {
+                std::string value;
+                if (!ParseString(value)) return false;
+                item.jsonExtraProperties.push_back(m_text.substr(propertyStart, m_pos - propertyStart));
             }
             else {
                 if (!SkipValue()) return false;
@@ -309,7 +417,8 @@ private:
     }
 };
 
-bool LoadJsonDataFile(const CString& dataPath, CArray<ItemData, ItemData&>& loaded, CString* pError)
+bool LoadJsonDataFile(const CString& dataPath, CArray<ItemData, ItemData&>& loaded,
+    JsonFileMetadata& metadata, CString* pError)
 {
     CFile file;
     try {
@@ -346,14 +455,16 @@ bool LoadJsonDataFile(const CString& dataPath, CArray<ItemData, ItemData&>& load
     }
 
     CArray<ItemData, ItemData&> parsed;
+    JsonFileMetadata parsedMetadata;
     JsonDataParser parser(text);
-    if (!parser.Parse(parsed)) {
+    if (!parser.Parse(parsed, parsedMetadata)) {
         if (pError != NULL) *pError = GetIniMessage(_T(""), _T("data_format_ng"), _T("Invalid data file format."));
         return false;
     }
 
     loaded.RemoveAll();
     for (int i = 0; i < parsed.GetSize(); ++i) loaded.Add(parsed[i]);
+    metadata = parsedMetadata;
     return true;
 }
 
@@ -385,28 +496,52 @@ static void AppendJsonString(std::string& output, const CString& value)
     output += '"';
 }
 
-void SaveJsonDataFile(const CString& dataPath, const CArray<ItemData, ItemData&>& items)
+static CString MakeUtcTimestamp()
 {
-    std::string text = "[\n";
+    SYSTEMTIME value = {};
+    GetSystemTime(&value);
+    CString timestamp;
+    timestamp.Format(_T("%04u-%02u-%02uT%02u:%02u:%02u.%03uZ"),
+        value.wYear, value.wMonth, value.wDay, value.wHour, value.wMinute,
+        value.wSecond, value.wMilliseconds);
+    return timestamp;
+}
+
+void SaveJsonDataFile(const CString& dataPath, const CArray<ItemData, ItemData&>& items,
+    const JsonFileMetadata& metadata)
+{
+    std::string text = "{\n  \"format\": \"c-send-pwa-backup\",\n  \"version\": 1,\n  \"createdAt\": ";
+    AppendJsonString(text, metadata.createdAt.IsEmpty() ? MakeUtcTimestamp() : metadata.createdAt);
+    if (!metadata.categoryName.IsEmpty()) {
+        text += ",\n  \"categoryName\": ";
+        AppendJsonString(text, metadata.categoryName);
+    }
+    for (size_t extra = 0; extra < metadata.extraProperties.size(); ++extra) {
+        text += ",\n  ";
+        text += metadata.extraProperties[extra];
+    }
+    text += ",\n  \"items\": [\n";
     for (int i = 0; i < items.GetSize(); ++i) {
         const ItemData& item = items[i];
-        text += "  {\n    \"name\": ";
+        text += "    {\n      \"name\": ";
         AppendJsonString(text, item.name);
-        text += ",\n    \"value\": ";
+        text += ",\n      \"value\": ";
         AppendJsonString(text, item.value);
         char typeBuffer[32] = { 0 };
         sprintf_s(typeBuffer, "%d", item.type);
-        text += ",\n    \"type\": ";
+        text += ",\n      \"type\": ";
         text += typeBuffer;
+        text += ",\n      \"mode\": ";
+        AppendJsonString(text, item.mode.IsEmpty() ? CString(_T("plain")) : item.mode);
         for (size_t extra = 0; extra < item.jsonExtraProperties.size(); ++extra) {
-            text += ",\n    ";
+            text += ",\n      ";
             text += item.jsonExtraProperties[extra];
         }
-        text += "\n  }";
+        text += "\n    }";
         if (i + 1 < items.GetSize()) text += ',';
         text += '\n';
     }
-    text += "]\n";
+    text += "  ]\n}\n";
 
     CFile file;
     try {

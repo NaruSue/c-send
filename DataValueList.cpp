@@ -141,10 +141,11 @@ CDataValueList::~CDataValueList()
 bool CDataValueList::LoadAll(CString txtPath, DataFileFormat format, CString* pError)
 {
     if (format == DATA_FILE_FORMAT_JSON) {
-        return LoadJsonDataFile(txtPath, m_arr, pError);
+        return LoadJsonDataFile(txtPath, m_arr, m_jsonMetadata, pError);
     }
 
     m_arr.RemoveAll();
+    m_jsonMetadata.Clear();
     if (pError != NULL) {
         pError->Empty();
     }
@@ -231,7 +232,7 @@ bool CDataValueList::LoadAll(CString txtPath, DataFileFormat format, CString* pE
 void CDataValueList::SaveAll(CString txtPath, DataFileFormat format)
 {
     if (format == DATA_FILE_FORMAT_JSON) {
-        SaveJsonDataFile(txtPath, m_arr);
+        SaveJsonDataFile(txtPath, m_arr, m_jsonMetadata);
         return;
     }
 
