@@ -157,9 +157,9 @@ TTTTLLLLBBBBRRRR
 [category]
 count=2
 item000=Git
-path000=samples\en\Git.txt
+path000=samples\en\Git.json
 item001=SQL
-path001=https://raw.githubusercontent.com/NaruSue/c-send/feature/codex_1.6/samples/jp/SQL.txt
+path001=https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/SQL.json
 last=Git
 
 [font]

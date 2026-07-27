@@ -36,10 +36,10 @@
 
 ### 参照先の例
 
-- `samples\jp\Git.txt`
-- `C:\Users\example\Documents\my-category.txt`
+- `samples\jp\Git.json`
 - `C:\Users\example\Documents\my-category.json`
-- `https://example.com/category.txt`
+- `C:\Users\example\Documents\my-category.json`
+- `https://example.com/category.json`
 - `https://example.com/category.json`
 
 ## カテゴリ作成で迷いやすいところ
@@ -56,6 +56,26 @@
 JSONデータの `template` 項目では、日時やクリップボードの内容を展開してからコピーできます。
 
 詳しい作成手順と記法は、[テンプレートの使い方](./template-usage.md) を参照してください。
+
+## 公開サンプルカタログ
+
+共通JSON形式のサンプルは、GitHubのRaw URLで公開カタログとして管理できます。
+
+### ネイティブ版で直接参照する
+
+ネイティブ版では、GitHubのRaw URLをカテゴリの参照先に指定できます。URLカテゴリは読み取り専用で、GitHub上の最新内容を参照します。
+
+例:
+
+```text
+https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/テンプレート.json
+```
+
+### ローカルで編集する
+
+公開カタログのJSONをダウンロードし、ローカルJSONとして追加すれば、通常の定型文と同じように編集・削除できます。ダウンロード後の変更はGitHub上のカタログには反映されません。
+
+PWA版では、メニューの「URLから追加」からRaw URLを入力して取り込めます。取得先がCORSを許可している必要があります。取り込み後はPWAの端末内データとして自由に編集・削除できます。
 
 ## 並べ替えと削除
 

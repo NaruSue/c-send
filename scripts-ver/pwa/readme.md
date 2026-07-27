@@ -63,6 +63,55 @@ Windows用のネイティブ版c-sendとは別に、iPhoneなどのスマート�
 
 左上のアイコンからメニューを開き、`ファイルから追加` を選びます。[共通JSONデータ形式仕様](../../docs/data-file-spec.md) に適合するファイルを1つ以上選択すると、既存データへ追加されます。取り込んだファイル名は `sourceName` として保存されます。
 
+GitHubの公開カタログを使う場合は、メニューの `URLから追加` にJSONのRaw URLを入力します。取得先がCORSを許可している必要があります。取り込み後の項目は端末内のデータとして自由に編集できます。
+
+### 公開サンプルカタログ
+
+サンプルJSONはGitHubで公開しています。PWAの `URLから追加` では、通常のGitHubページではなく、必ず `Raw` のURLを使用してください。
+
+- [日本語サンプル一覧（GitHub）](https://github.com/NaruSue/c-send/tree/master/samples/jp)
+- [英語サンプル一覧（GitHub）](https://github.com/NaruSue/c-send/tree/master/samples/en)
+
+#### 日本語サンプル
+
+| サンプル | Raw URL |
+| --- | --- |
+| Git | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/Git.json) |
+| HTML | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/HTML.json) |
+| JSON | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/JSON.json) |
+| Markdown | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/Markdown.json) |
+| PowerShell | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/PowerShell.json) |
+| SQL | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/SQL.json) |
+| URL | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/URL.json) |
+| Windowsコマンド | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/Windows%E3%82%B3%E3%83%9E%E3%83%B3%E3%83%89.json) |
+| テンプレート | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/%E3%83%86%E3%83%B3%E3%83%97%E3%83%AC%E3%83%BC%E3%83%88.json) |
+| メール・チャット | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/%E3%83%A1%E3%83%BC%E3%83%AB%E3%83%BB%E3%83%81%E3%83%A3%E3%83%83%E3%83%88.json) |
+| 挨拶 | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/%E6%8C%A8%E6%8B%B6.json) |
+| 記号 | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/%E8%A8%98%E5%8F%B7.json) |
+
+#### 英語サンプル
+
+| サンプル | Raw URL |
+| --- | --- |
+| Email and Chat | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/Email%20and%20Chat.json) |
+| Git | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/Git.json) |
+| Greetings | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/Greetings.json) |
+| HTML | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/HTML.json) |
+| JSON | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/JSON.json) |
+| Markdown | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/Markdown.json) |
+| PowerShell | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/PowerShell.json) |
+| SQL | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/SQL.json) |
+| Symbols | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/Symbols.json) |
+| Templates | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/Templates.json) |
+| URLs | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/URLs.json) |
+| Windows Commands | [Raw](https://raw.githubusercontent.com/NaruSue/c-send/master/samples/en/Windows%20Commands.json) |
+
+URLをコピーしてPWAのメニューから `URLから追加` を開き、入力欄へ貼り付けてください。Raw URLの例:
+
+```text
+https://raw.githubusercontent.com/NaruSue/c-send/master/samples/jp/テンプレート.json
+```
+
 ### 探す
 
 - 上部の検索欄では、タイトル・本文・タグを検索できます。

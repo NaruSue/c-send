@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v1.16</title>
+<title>c-send PWA v1.17</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -637,6 +637,7 @@ button:active {
       <button class="menu-item" id="appMenuHelp" type="button">使い方</button>
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuAddFile" type="button">ファイルから追加</button>
+      <button class="menu-item" id="appMenuAddUrl" type="button">URLから追加</button>
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuBackup" type="button">バックアップ</button>
       <button class="menu-item" id="appMenuRestore" type="button">リストア</button>
@@ -687,7 +688,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "1.16";
+  const APP_VERSION = "1.17";
   const APP_NAME = "c-send PWA";
   const DB_NAME = "c-send-pwa";
   const DB_VERSION = 1;
@@ -726,6 +727,7 @@ button:active {
     appMenuBackdrop: document.getElementById("appMenuBackdrop"),
     appMenuHelp: document.getElementById("appMenuHelp"),
     appMenuAddFile: document.getElementById("appMenuAddFile"),
+    appMenuAddUrl: document.getElementById("appMenuAddUrl"),
     appMenuBackup: document.getElementById("appMenuBackup"),
     appMenuRestore: document.getElementById("appMenuRestore"),
     restoreFileInput: document.getElementById("restoreFileInput"),
@@ -1146,6 +1148,44 @@ button:active {
     }
   }
 
+  async function addFromUrl() {
+    closeAppMenu();
+    const url = window.prompt("共通JSONファイルのURLを入力してください。", "https://raw.githubusercontent.com/");
+    if (!url || !url.trim()) return;
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url.trim());
+      if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+        throw new Error("http:// または https:// のURLを指定してください。");
+      }
+    } catch (err) {
+      setStatus(err.message || "URLが正しくありません。", true);
+      alert(err.message || "URLが正しくありません。");
+      return;
+    }
+    try {
+      const response = await fetch(parsedUrl.href, { cache: "no-store" });
+      if (!response.ok) throw new Error(`URLの読み込みに失敗しました: ${response.status}`);
+      const payload = validatePayload(await response.json());
+      const imported = payload.items.map((item) => {
+        const normalized = normalizeItem(item);
+        if (!normalized.sourceName) normalized.sourceName = parsedUrl.href;
+        return normalized;
+      });
+      if (!imported.length) throw new Error("追加できる項目がありません。");
+      state.items = state.items.concat(imported);
+      const saved = await saveState();
+      if (!saved) throw new Error("データを保存できませんでした。");
+      render();
+      setStatus(`${imported.length}件追加（全${state.items.length}件）`);
+      showCopyTip("URLから追加しました");
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || "URLからの追加に失敗しました。", true);
+      alert(err.message || "URLからの追加に失敗しました。CORS設定を確認してください。");
+    }
+  }
+
   async function loadSamples() {
     const response = await fetch("samples.json");
     if (!response.ok) {
@@ -1519,6 +1559,7 @@ button:active {
       openHelpPopover();
     });
     els.appMenuAddFile.addEventListener("click", chooseAddFile);
+    els.appMenuAddUrl.addEventListener("click", addFromUrl);
     els.appMenuBackup.addEventListener("click", backupState);
     els.appMenuRestore.addEventListener("click", chooseRestoreFile);
     els.restoreFileInput.addEventListener("change", () => restoreFromFile(els.restoreFileInput.files[0]));
