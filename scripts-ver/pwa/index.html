@@ -446,7 +446,7 @@ button:active {
   padding: 14px 16px;
   border-radius: 0;
 }
-.menu-item:not(:last-child) {
+.menu-item + .menu-item {
   border-bottom: 1px solid #edf1f5;
 }
 .menu-divider {
@@ -641,6 +641,8 @@ button:active {
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuBackup" type="button">バックアップ</button>
       <button class="menu-item" id="appMenuRestore" type="button">リストア</button>
+      <div class="menu-divider" role="separator"></div>
+      <button class="menu-item" id="appMenuCheckVersion" type="button">バージョンチェック</button>
     </div>
   </div>
   <input id="restoreFileInput" type="file" accept="application/json,.json" hidden />
@@ -730,6 +732,7 @@ button:active {
     appMenuAddUrl: document.getElementById("appMenuAddUrl"),
     appMenuBackup: document.getElementById("appMenuBackup"),
     appMenuRestore: document.getElementById("appMenuRestore"),
+    appMenuCheckVersion: document.getElementById("appMenuCheckVersion"),
     restoreFileInput: document.getElementById("restoreFileInput"),
     addFileInput: document.getElementById("addFileInput"),
     installPopover: document.getElementById("installPopover"),
@@ -886,6 +889,39 @@ button:active {
       usageCount: Math.max(0, Number(item && item.usageCount) || 0),
       lastUsedAt: String(item && item.lastUsedAt ? item.lastUsedAt : "")
     });
+  }
+
+  function mergeImportedItems(imported) {
+    let added = 0;
+    let updated = 0;
+    imported.forEach((incoming) => {
+      const matches = [];
+      state.items.forEach((current, index) => {
+        if (current.name === incoming.name && current.value === incoming.value) {
+          matches.push(index);
+        }
+      });
+      if (!matches.length) {
+        state.items.push(incoming);
+        added += 1;
+        return;
+      }
+
+      const targetIndex = matches[0];
+      const tags = [];
+      matches.concat([-1]).forEach((index) => {
+        const source = index < 0 ? incoming : state.items[index];
+        (source.tags || []).forEach((tag) => {
+          if (!tags.includes(tag)) tags.push(tag);
+        });
+      });
+      state.items[targetIndex] = Object.assign({}, state.items[targetIndex], incoming, { tags });
+      for (let index = matches.length - 1; index > 0; index -= 1) {
+        state.items.splice(matches[index], 1);
+      }
+      updated += 1;
+    });
+    return { added, updated };
   }
 
   function templateArgs(text) {
@@ -1128,16 +1164,16 @@ button:active {
         const payload = validatePayload(JSON.parse(await file.text()));
         payload.items.forEach((item) => {
           const normalized = normalizeItem(item);
-          if (!normalized.sourceName) normalized.sourceName = file.name;
+          normalized.sourceName = file.name;
           imported.push(normalized);
         });
       }
       if (!imported.length) throw new Error("追加できる項目がありません。");
-      state.items = state.items.concat(imported);
+      const result = mergeImportedItems(imported);
       const saved = await saveState();
       if (!saved) throw new Error("データを保存できませんでした。");
       render();
-      setStatus(`${imported.length}件追加（全${state.items.length}件）`);
+      setStatus(`${result.added}件追加、${result.updated}件更新（全${state.items.length}件）`);
       showCopyTip("ファイルから追加しました");
     } catch (err) {
       console.error(err);
@@ -1169,15 +1205,15 @@ button:active {
       const payload = validatePayload(await response.json());
       const imported = payload.items.map((item) => {
         const normalized = normalizeItem(item);
-        if (!normalized.sourceName) normalized.sourceName = parsedUrl.href;
+        normalized.sourceName = parsedUrl.href;
         return normalized;
       });
       if (!imported.length) throw new Error("追加できる項目がありません。");
-      state.items = state.items.concat(imported);
+      const result = mergeImportedItems(imported);
       const saved = await saveState();
       if (!saved) throw new Error("データを保存できませんでした。");
       render();
-      setStatus(`${imported.length}件追加（全${state.items.length}件）`);
+      setStatus(`${result.added}件追加、${result.updated}件更新（全${state.items.length}件）`);
       showCopyTip("URLから追加しました");
     } catch (err) {
       console.error(err);
@@ -1541,6 +1577,53 @@ button:active {
     els.appTitle.textContent = `${APP_NAME} v${APP_VERSION}`;
   }
 
+  function compareVersions(left, right) {
+    const leftParts = String(left).split(".").map((part) => Number(part) || 0);
+    const rightParts = String(right).split(".").map((part) => Number(part) || 0);
+    const length = Math.max(leftParts.length, rightParts.length);
+    for (let index = 0; index < length; index += 1) {
+      const difference = (leftParts[index] || 0) - (rightParts[index] || 0);
+      if (difference) return difference;
+    }
+    return 0;
+  }
+
+  async function checkVersion() {
+    closeAppMenu();
+    try {
+      setStatus("最新版を確認しています…");
+      const currentUrl = new URL(window.location.href);
+      currentUrl.search = `?versionCheck=${Date.now()}`;
+      currentUrl.hash = "";
+      const response = await fetch(currentUrl.href, { cache: "no-store" });
+      if (!response.ok) throw new Error(`最新版の確認に失敗しました: ${response.status}`);
+      const html = await response.text();
+      const match = html.match(/const\s+APP_VERSION\s*=\s*["']([^"']+)["']/);
+      if (!match) throw new Error("最新版のバージョン情報を取得できませんでした。");
+
+      const latestVersion = match[1];
+      if (compareVersions(latestVersion, APP_VERSION) <= 0) {
+        setStatus(`最新版です（v${APP_VERSION}）`);
+        showCopyTip(`最新版です（v${APP_VERSION}）`);
+        return;
+      }
+      if (!confirm(`v${latestVersion} に更新できます。更新しますか？`)) return;
+
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      }
+      if ("caches" in window) {
+        await Promise.all((await caches.keys()).map((key) => caches.delete(key)));
+      }
+      window.location.replace(currentUrl.href);
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || "バージョンチェックに失敗しました。", true);
+      alert(err.message || "バージョンチェックに失敗しました。");
+    }
+  }
+
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("service-worker.js").catch((err) => {
@@ -1562,6 +1645,7 @@ button:active {
     els.appMenuAddUrl.addEventListener("click", addFromUrl);
     els.appMenuBackup.addEventListener("click", backupState);
     els.appMenuRestore.addEventListener("click", chooseRestoreFile);
+    els.appMenuCheckVersion.addEventListener("click", checkVersion);
     els.restoreFileInput.addEventListener("change", () => restoreFromFile(els.restoreFileInput.files[0]));
     els.addFileInput.addEventListener("change", () => addFiles(els.addFileInput.files));
     ["pointerdown", "pointerup", "pointercancel", "touchstart", "touchend", "click"].forEach((eventName) => {
