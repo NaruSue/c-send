@@ -137,7 +137,7 @@
     <ClCompile Include="csend.cpp" />
     <ClCompile Include="csendDlg.cpp" />
     <ClCompile Include="DataValueList.cpp" />
-    <ClCompile Include="GeminiApi.cpp" />
+    <ClCompile Include="ApiClient.cpp" />
     <ClCompile Include="ApiCommand.cpp" />
     <ClCompile Include="ActionListBox.cpp" />
     <ClCompile Include="ClipboardTipWnd.cpp" />
@@ -165,7 +165,7 @@
     <ClInclude Include="csend.h" />
     <ClInclude Include="csendDlg.h" />
     <ClInclude Include="DataValueList.h" />
-    <ClInclude Include="GeminiApi.h" />
+    <ClInclude Include="ApiClient.h" />
     <ClInclude Include="ApiCommand.h" />
     <ClInclude Include="ActionListBox.h" />
     <ClInclude Include="ClipboardTipWnd.h" />

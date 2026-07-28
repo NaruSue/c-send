@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "ApiCommand.h"
-#include "GeminiApi.h"
+#include "ApiClient.h"
 
 namespace {
 BOOL ReadClipboardText(CString& text)
@@ -86,7 +86,7 @@ int RunApiCommandLine()
     const CString operation = Argument(argv, 2);
     if (operation.CompareNoCase(_T("key-status")) == 0) {
         CString key;
-        BOOL configured = ReadGeminiApiKey(key) && !key.IsEmpty();
+        BOOL configured = ReadApiCredential(key) && !key.IsEmpty();
         ::LocalFree(argv);
         return configured ? 0 : 3;
     }
@@ -115,8 +115,8 @@ int RunApiCommandLine()
     CString error;
     TCHAR mockMode[64] = {};
     BOOL mock = ::GetEnvironmentVariable(_T("CSEND_GEMINI_MOCK"), mockMode, _countof(mockMode)) > 0;
-    BOOL success = (mock || ReadGeminiApiKey(key)) &&
-        ExecuteGeminiGenerateContent(key, prompt, 0, result, error);
+    BOOL success = (mock || ReadApiCredential(key)) &&
+        ExecuteApiAction(key, prompt, 0, result, error);
     if (success && !WriteClipboardText(result)) {
         ::LocalFree(argv);
         return 5;

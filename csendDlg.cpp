@@ -12,7 +12,7 @@
 #include "ToastNotificationHelper.h"
 #include "IniTextUtil.h"
 #include "TemplateEngine.h"
-#include "GeminiApi.h"
+#include "ApiClient.h"
 #include <wininet.h>
 
 #pragma comment(lib, "wininet.lib")
@@ -45,11 +45,11 @@ static UINT ApiWorkerProc(LPVOID parameter)
     completion->success = FALSE;
 
     CString apiKey;
-    if (!ReadGeminiApiKey(apiKey)) {
+    if (!ReadApiCredential(apiKey)) {
         completion->error = _T("Gemini API key is not configured in Windows Credential Manager.");
     }
     else {
-        completion->success = ExecuteGeminiGenerateContent(apiKey, context->prompt,
+        completion->success = ExecuteApiAction(apiKey, context->prompt,
             context->timeoutMs, completion->result, completion->error) ? TRUE : FALSE;
     }
 
@@ -1280,7 +1280,7 @@ void CCsendDlg::ExecuteApiItem(int index)
     if (m_dataList.Datas(index).mode != _T("api")) return;
 
     CString apiKey;
-    if (!ReadGeminiApiKey(apiKey)) {
+    if (!ReadApiCredential(apiKey)) {
         CString keyTitle = _T("Gemini API Key");
         CString enteredKey;
         CInputBox keyDialog;
@@ -1289,7 +1289,7 @@ void CCsendDlg::ExecuteApiItem(int index)
         keyDialog.SetTemplateEnabled(FALSE);
         if (keyDialog.DoModal() != IDOK) return;
         keyDialog.GetInputText(keyTitle, enteredKey);
-        if (!WriteGeminiApiKey(enteredKey)) {
+        if (!WriteApiCredential(enteredKey)) {
             AfxMessageBox(_T("Gemini API key could not be saved to Windows Credential Manager."), MB_OK | MB_ICONERROR);
             return;
         }

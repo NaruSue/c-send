@@ -3,7 +3,7 @@
 #include "CategoryDataList.h"
 #include "DataValueList.h"
 #include "ClipboardTipWnd.h"
-#include "GeminiApi.h"
+#include "ApiClient.h"
 #include "ActionListBox.h"
 
 /////////////////////////////////////////////////////////////////////////////

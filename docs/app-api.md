@@ -46,6 +46,9 @@ if ($LASTEXITCODE -eq 0) { Get-Clipboard }
 
 - API実装はGUIのAPI項目と同じGemini通信処理を使用する。
 - エンドポイント、メソッド、モデル、ポート、TLS、タイムアウトはアプリ配下の `api/gemini.json` から読み込む。
+- リクエスト本文は `requestTemplate` の `{{prompt_json}}` を置換して生成する。
+- レスポンス本文は `responsePath` で指定されたJSONパスの末端値を抽出する。
+- 認証は `authType` で選択する。現在は `credential-header` のみ対応し、Credential Managerの対象名とヘッダー名も設定ファイルから読み込む。
 - タイムアウトは120秒、自動リトライは行わない。
 - APIキーをログ、設定ファイル、コマンドライン引数へ出力しない。
 - CLIのレスポンス表示UIは持たず、クリップボードへ格納する。
@@ -63,6 +66,25 @@ GitHub Actionsなど外部APIキーを使わない自動テストでは、環境
 | `timeout` | タイムアウトを返す |
 
 MockモードではCredential Managerや外部Gemini APIを使用しない。実APIの疎通確認は手動または限定したワークフローで行う。
+
+## API設定例
+
+`api/gemini.json` はAPI固有の定義であり、通信実装にはGemini固有のリクエストJSONやレスポンスパスを持たせない。
+
+```json
+{
+  "endpoint": "generativelanguage.googleapis.com",
+  "path": "/v1beta/models/{model}:generateContent",
+  "method": "POST",
+  "model": "gemini-3.5-flash-lite",
+  "timeoutMs": 120000,
+  "authType": "credential-header",
+  "credentialTarget": "C-Send/GeminiAPIKey",
+  "authHeader": "x-goog-api-key",
+  "requestTemplate": "{\"contents\":[{\"parts\":[{\"text\":{{prompt_json}}}]}]}",
+  "responsePath": "candidates[].content.parts[].text"
+}
+```
 
 ## 将来の起動中アプリ操作
 

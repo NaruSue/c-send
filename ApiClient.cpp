@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "GeminiApi.h"
+#include "ApiClient.h"
 
 #include <wincred.h>
 #include <wininet.h>
@@ -104,15 +104,22 @@ static bool ReadJsonString(const std::string& text, size_t& position, CString& v
     return false;
 }
 
-static bool ExtractResponseText(const std::string& body, CString& result)
+static bool ExtractResponseText(const std::string& body, const CString& responsePath, CString& result)
 {
-    size_t candidates = body.find("\"candidates\"");
-    if (candidates == std::string::npos) return false;
-    size_t textPosition = candidates;
+    CString path = responsePath;
+    int separator = path.ReverseFind(_T('.'));
+    if (separator >= 0) path = path.Mid(separator + 1);
+    path.Replace(_T("[]"), _T(""));
+    CStringA pathA(path);
+    std::string key = "\"";
+    key += pathA.GetString();
+    key += "\"";
+    size_t textPosition = body.find(key);
+    if (textPosition == std::string::npos) return false;
     result.Empty();
     bool found = false;
-    while ((textPosition = body.find("\"text\"", textPosition)) != std::string::npos) {
-        size_t colon = body.find(':', textPosition + 6);
+    while (textPosition != std::string::npos) {
+        size_t colon = body.find(':', textPosition + key.size());
         if (colon == std::string::npos) break;
         ++colon;
         while (colon < body.size() && (body[colon] == ' ' || body[colon] == '\t' || body[colon] == '\r' || body[colon] == '\n')) ++colon;
@@ -122,7 +129,7 @@ static bool ExtractResponseText(const std::string& body, CString& result)
             result += part;
             found = true;
         }
-        textPosition = colon + 1;
+        textPosition = body.find(key, colon + 1);
     }
     return found;
 }
@@ -185,9 +192,9 @@ static CString GetConfigFilePath()
     return path + _T("\\api\\gemini.json");
 }
 
-bool LoadGeminiApiConfig(GeminiApiConfig& config)
+bool LoadApiConfig(ApiConfig& config)
 {
-    config = GeminiApiConfig();
+    config = ApiConfig();
     CStringA configPath(GetConfigFilePath());
     std::ifstream file(configPath.GetString(), std::ios::binary);
     if (!file) return false;
@@ -198,16 +205,26 @@ bool LoadGeminiApiConfig(GeminiApiConfig& config)
         !ReadConfigString(text, "model", config.model) ||
         !ReadConfigNumber(text, "port", config.port) ||
         !ReadConfigBool(text, "secure", config.secure) ||
-        !ReadConfigNumber(text, "timeoutMs", config.timeoutMs)) return false;
+        !ReadConfigNumber(text, "timeoutMs", config.timeoutMs) ||
+        !ReadConfigString(text, "authType", config.authType) ||
+        !ReadConfigString(text, "credentialTarget", config.credentialTarget) ||
+        !ReadConfigString(text, "authHeader", config.authHeader) ||
+        !ReadConfigString(text, "requestTemplate", config.requestTemplate) ||
+        !ReadConfigString(text, "responsePath", config.responsePath)) return false;
     config.path.Replace(_T("{model}"), config.model);
-    return !config.endpoint.IsEmpty() && !config.path.IsEmpty() && !config.method.IsEmpty() && config.port != 0;
+    return !config.endpoint.IsEmpty() && !config.path.IsEmpty() && !config.method.IsEmpty() &&
+        !config.authType.IsEmpty() && !config.credentialTarget.IsEmpty() && !config.authHeader.IsEmpty() &&
+        !config.requestTemplate.IsEmpty() && !config.responsePath.IsEmpty() && config.port != 0;
 }
 
-bool ReadGeminiApiKey(CString& apiKey)
+bool ReadApiCredential(CString& apiKey)
 {
     apiKey.Empty();
+    ApiConfig config;
+    if (!LoadApiConfig(config)) return false;
+    CStringW targetW(config.credentialTarget);
     PCREDENTIALW credential = NULL;
-    if (!CredReadW(kGeminiApiCredentialTarget, CRED_TYPE_GENERIC, 0, &credential)) {
+    if (!CredReadW(targetW.GetString(), CRED_TYPE_GENERIC, 0, &credential)) {
         return false;
     }
 
@@ -220,14 +237,17 @@ bool ReadGeminiApiKey(CString& apiKey)
     return !apiKey.IsEmpty();
 }
 
-bool WriteGeminiApiKey(const CString& apiKey)
+bool WriteApiCredential(const CString& apiKey)
 {
+    ApiConfig config;
+    if (!LoadApiConfig(config)) return false;
     std::string utf8;
     if (apiKey.IsEmpty() || !CStringToUtf8(apiKey, utf8)) return false;
 
     CREDENTIALW credential = {};
     credential.Type = CRED_TYPE_GENERIC;
-    credential.TargetName = const_cast<LPWSTR>(kGeminiApiCredentialTarget);
+    CStringW targetW(config.credentialTarget);
+    credential.TargetName = const_cast<LPWSTR>(targetW.GetString());
     credential.UserName = const_cast<LPWSTR>(L"C-Send");
     credential.CredentialBlobSize = (DWORD)utf8.size();
     credential.CredentialBlob = (LPBYTE)utf8.data();
@@ -235,15 +255,15 @@ bool WriteGeminiApiKey(const CString& apiKey)
     return CredWriteW(&credential, 0) == TRUE;
 }
 
-bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
+bool ExecuteApiAction(const CString& apiKey, const CString& prompt,
     DWORD timeoutMs, CString& result, CString& error)
 {
     result.Empty();
     error.Empty();
 
-    GeminiApiConfig config;
-    if (!LoadGeminiApiConfig(config)) {
-        error = _T("Gemini API configuration could not be loaded.");
+    ApiConfig config;
+    if (!LoadApiConfig(config)) {
+        error = _T("API configuration could not be loaded.");
         return false;
     }
     DWORD effectiveTimeoutMs = config.timeoutMs != 0 ? config.timeoutMs : timeoutMs;
@@ -271,8 +291,8 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
             error = _T("Unknown Gemini API mock mode.");
             return false;
         }
-        if (!ExtractResponseText(response, result) || result.IsEmpty()) {
-            error = _T("Gemini API response did not contain generated text.");
+        if (!ExtractResponseText(response, config.responsePath, result) || result.IsEmpty()) {
+            error = _T("API response did not contain the configured result.");
             return false;
         }
         return true;
@@ -280,7 +300,23 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
 
     std::string promptJson;
     AppendJsonString(promptJson, prompt);
-    std::string requestBody = "{\"contents\":[{\"parts\":[{\"text\":" + promptJson + "}]}]}";
+    std::string requestBody;
+    if (!CStringToUtf8(config.requestTemplate, requestBody)) {
+        error = _T("API request template could not be encoded.");
+        return false;
+    }
+    const std::string promptToken = "{{prompt_json}}";
+    size_t tokenPosition = requestBody.find(promptToken);
+    if (tokenPosition == std::string::npos) {
+        error = _T("API request template does not contain {{prompt_json}}.");
+        return false;
+    }
+    requestBody.replace(tokenPosition, promptToken.size(), promptJson);
+
+    if (config.authType.CompareNoCase(_T("credential-header")) != 0) {
+        error = _T("The configured API authentication type is not supported yet.");
+        return false;
+    }
 
     HINTERNET session = InternetOpen(_T("C-Send/2.0"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (session == NULL) {
@@ -317,7 +353,7 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
     InternetSetOption(request, INTERNET_OPTION_RECEIVE_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
 
     CString headers;
-    headers.Format(_T("Content-Type: application/json\r\nx-goog-api-key: %s\r\n"), apiKey.GetString());
+    headers.Format(_T("Content-Type: application/json\r\n%s: %s\r\n"), config.authHeader.GetString(), apiKey.GetString());
     CStringA headerA(headers);
     BOOL sent = HttpSendRequestA(request, headerA.GetString(), -1,
         (LPVOID)requestBody.data(), (DWORD)requestBody.size());
@@ -345,11 +381,11 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
     InternetCloseHandle(session);
 
     if (status < 200 || status >= 300) {
-        error.Format(_T("Gemini API returned HTTP status %lu."), status);
+        error.Format(_T("API returned HTTP status %lu."), status);
         return false;
     }
-    if (!ExtractResponseText(response, result) || result.IsEmpty()) {
-        error = _T("Gemini API response did not contain generated text.");
+    if (!ExtractResponseText(response, config.responsePath, result) || result.IsEmpty()) {
+        error = _T("API response did not contain the configured result.");
         return false;
     }
     return true;

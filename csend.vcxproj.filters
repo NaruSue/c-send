@@ -42,7 +42,7 @@
     <ClCompile Include="DataValueList.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-      <ClCompile Include="GeminiApi.cpp">
+      <ClCompile Include="ApiClient.cpp">
         <Filter>Source Files</Filter>
       </ClCompile>
       <ClCompile Include="ApiCommand.cpp">
@@ -99,7 +99,7 @@
     <ClInclude Include="DataValueList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-      <ClInclude Include="GeminiApi.h">
+      <ClInclude Include="ApiClient.h">
         <Filter>Header Files</Filter>
       </ClInclude>
       <ClInclude Include="ApiCommand.h">
