@@ -1,0 +1,20 @@
+{
+  "format": "c-send-pwa-backup",
+  "version": 1,
+  "createdAt": "2026-07-28T00:00:00.000Z",
+  "categoryName": "Gemini API",
+  "items": [
+    {
+      "name": "クリップボードを要約",
+      "value": "次の文章を日本語で簡潔に要約してください。\n\n{{clipboard}}",
+      "type": 0,
+      "mode": "api"
+    },
+    {
+      "name": "文章を添削",
+      "value": "次の文章を厳しく添削してください。改善案も示してください。\n\n{{clipboard}}",
+      "type": 0,
+      "mode": "api"
+    }
+  ]
+}
