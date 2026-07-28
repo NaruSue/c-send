@@ -30,6 +30,7 @@ public:
 	void BuildTrayMenu(CMenu& menu);
 	void BuildListContextMenu(CMenu& menu);
 	void ExecuteApiItem(int index);
+	int GetSelectedDataIndex() const;
 
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)
@@ -110,6 +111,7 @@ private:
 	CString m_statusMessage;
 	BOOL m_bStatusErrorMode = FALSE;
 	BOOL m_apiBusy = FALSE;
+	BOOL m_apiAvailable = FALSE;
 	int m_apiItemIndex = -1;
 	DWORD m_apiTimeoutMs = 0;
 };

@@ -16,6 +16,7 @@ public:
 	void GetMode(CString& mode) const;
 	void SetMode(const CString& mode);
 	void SetTemplateEnabled(BOOL enabled);
+	void SetApiEnabled(BOOL enabled);
 
 // ダイアログ データ
 	//{{AFX_DATA(CInputBox)
@@ -53,4 +54,5 @@ private:
 	CFont m_dialogFont;
 	BOOL m_bViewOnly;
 	BOOL m_bTemplateEnabled;
+	BOOL m_bApiEnabled;
 };

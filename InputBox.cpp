@@ -21,6 +21,7 @@ CInputBox::CInputBox(CWnd* pParent /*=NULL*/)
 {
 	m_bViewOnly = FALSE;
 	m_bTemplateEnabled = TRUE;
+	m_bApiEnabled = TRUE;
 	m_Mode = _T("plain");
 	//{{AFX_DATA_INIT(CInputBox)
 		// メモ - ClassWizard はこの位置にマッピング用のマクロを追加または削除します。
@@ -72,6 +73,11 @@ void CInputBox::SetMode(const CString& mode)
 void CInputBox::GetMode(CString& mode) const
 {
 	mode = m_Mode;
+}
+
+void CInputBox::SetApiEnabled(BOOL enabled)
+{
+	m_bApiEnabled = enabled;
 }
 
 void CInputBox::SetTemplateEnabled(BOOL enabled)
@@ -179,6 +185,8 @@ BOOL CInputBox::OnInitDialog()
 	m_RadioPlain.SetCheck(m_Mode == _T("plain") ? BST_CHECKED : BST_UNCHECKED);
 	m_RadioTemplate.SetCheck(m_Mode == _T("template") ? BST_CHECKED : BST_UNCHECKED);
 	m_RadioApi.SetCheck(m_Mode == _T("api") ? BST_CHECKED : BST_UNCHECKED);
+	m_RadioApi.ShowWindow(m_bApiEnabled ? SW_SHOW : SW_HIDE);
+	m_RadioApi.EnableWindow(m_bApiEnabled);
 	if (!m_bTemplateEnabled) {
 		m_RadioPlain.SetCheck(BST_CHECKED);
 		m_RadioTemplate.SetCheck(BST_UNCHECKED);

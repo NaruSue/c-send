@@ -654,6 +654,8 @@ BOOL CCsendDlg::OnInitDialog()
 	GetModuleFileName(NULL, szPath, MAX_PATH); // C:\MyApp\MyApp.exe
 	PathRemoveFileSpec(szPath);                 // C:\MyApp
 	m_appPath = szPath;
+	ApiConfig apiConfig;
+	m_apiAvailable = LoadApiConfig(apiConfig) ? TRUE : FALSE;
 	m_iniPath.Format(_T("%s\\setting.ini"), szPath);
 
     EnsureDefaultIniMessages(m_iniPath);
@@ -803,7 +805,7 @@ HCURSOR CCsendDlg::OnQueryDragIcon()
 // リストを選択したときに呼ばれます
 void CCsendDlg::OnSelchangeClist()
 {
-	int i = m_CList.GetCurSel();
+	int i = GetSelectedDataIndex();
 	if (i == LB_ERR) return;
 
 	CString text;
@@ -906,7 +908,7 @@ void CCsendDlg::OnDblclkClist()
 {
 	// TODO: この位置にコントロール通知ハンドラ用のコードを追加してください
 
-	int i = m_CList.GetCurSel();
+	int i = GetSelectedDataIndex();
 	if( i < 0 || i >= m_dataList.GetCount() ){
         return;
     }
@@ -921,6 +923,7 @@ void CCsendDlg::OnDblclkClist()
 	cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value );
 	cInput.SetMode(m_dataList.Datas(i).mode);
 	cInput.SetTemplateEnabled(m_currentDataFormat == DATA_FILE_FORMAT_JSON);
+	cInput.SetApiEnabled(m_apiAvailable);
 	cInput.SetViewOnly( TRUE );
 	cInput.SetWindowName( InputWindowName );
 	cInput.DoModal();
@@ -1087,12 +1090,13 @@ void CCsendDlg::DeleteString()
         return;
     }
 
-	int j = m_CList.GetCurSel();	// 現在選択されている項目を調べます
+	int listIndex = m_CList.GetCurSel();	// 現在選択されている項目を調べます
+	int j = GetSelectedDataIndex();
 	if( j == LB_ERR ){	// 何も選択されていなければ何もしません
         return;
     }
 
-	if( j == i-1 ){	// 選択されている項目が最後（追加）での場合
+	if( listIndex == i-1 ){	// 選択されている項目が最後（追加）での場合
 		CString csMessage;
 		csMessage.LoadString( IDS_NODELETE ); // エラーメッセージを出します
 		AfxMessageBox( csMessage );
@@ -1183,9 +1187,10 @@ void CCsendDlg::ChangeMessage()
 
 	CInputBox cInput;	// メッセージ編集用のダイアログ
 	cInput.SetTemplateEnabled(m_currentDataFormat == DATA_FILE_FORMAT_JSON);
+	cInput.SetApiEnabled(m_apiAvailable);
 	
 	// 現在選択されている文字列を取得します
-	int i=m_CList.GetCurSel();
+	int i=GetSelectedDataIndex();
 
 	BOOL flag = FALSE;	// このフラグで、登録と変更を区別します。TRUE--登録  FALSE--変更
 	CString InputWindowName;	// メッセージ編集用のダイアログのキャプション用
@@ -1287,6 +1292,7 @@ void CCsendDlg::ExecuteApiItem(int index)
         keyDialog.SetInputText(keyTitle, enteredKey);
         keyDialog.SetWindowName(_T("Gemini API Key"));
         keyDialog.SetTemplateEnabled(FALSE);
+        keyDialog.SetApiEnabled(FALSE);
         if (keyDialog.DoModal() != IDOK) return;
         keyDialog.GetInputText(keyTitle, enteredKey);
         if (!WriteApiCredential(enteredKey)) {
@@ -1337,7 +1343,8 @@ void CCsendDlg::ExecuteApiItem(int index)
 
 LRESULT CCsendDlg::OnApiRunItem(WPARAM wParam, LPARAM)
 {
-    int index = (int)wParam;
+    int listIndex = (int)wParam;
+    int index = (listIndex >= 0 && listIndex < m_CList.GetCount()) ? (int)m_CList.GetItemData(listIndex) : -1;
     if (index < 0 || index >= m_dataList.GetCount() || m_dataList.Datas(index).mode != _T("api")) return 0;
     if (m_dataList.Datas(index).apiState == ItemData::API_STATE_COMPLETED && !m_dataList.Datas(index).apiResult.IsEmpty()) {
         CString result = m_dataList.Datas(index).apiResult;
@@ -1391,6 +1398,14 @@ LRESULT CCsendDlg::OnApiCompleted(WPARAM, LPARAM lParam)
     delete completion;
     return 0;
 }
+int CCsendDlg::GetSelectedDataIndex() const
+{
+	int listIndex = m_CList.GetCurSel();
+	if (listIndex == LB_ERR) return LB_ERR;
+	DWORD_PTR data = m_CList.GetItemData(listIndex);
+	return data == LB_ERR ? listIndex : (int)data;
+}
+
 void CCsendDlg::ActivateListItem(int index)
 {
     if (index < 0 || index >= m_dataList.GetCount()) {
@@ -1665,7 +1680,9 @@ void CCsendDlg::UpdateList() {
     }
 
 	for (int i = 0; i < m_dataList.GetCount(); i++) {
-		m_CList.AddString(MakeItemLabel(m_dataList.Datas(i)));
+		if (!m_apiAvailable && m_dataList.Datas(i).mode == _T("api")) continue;
+		int listIndex = m_CList.AddString(MakeItemLabel(m_dataList.Datas(i)));
+		if (listIndex != LB_ERR) m_CList.SetItemData(listIndex, (DWORD_PTR)i);
     }
 
 	SetWindowText(MakeWindowTitle(categoryName, m_bCurrentCategoryIsReadOnly));
@@ -1673,7 +1690,8 @@ void CCsendDlg::UpdateList() {
 	if (!m_bCurrentCategoryIsReadOnly) {
 		CString adds;
 		adds.LoadString(IDS_LISTADD);
-		m_CList.AddString(adds);
+		int listIndex = m_CList.AddString(adds);
+		if (listIndex != LB_ERR) m_CList.SetItemData(listIndex, (DWORD_PTR)m_dataList.GetCount());
     }
 
 	m_CList.SetRedraw(TRUE);
