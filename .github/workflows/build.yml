@@ -72,6 +72,7 @@ jobs:
             if ($process.ExitCode -ne 6) { throw "Invalid configuration test failed ($name): $($process.ExitCode)" }
           }
           Remove-Item Env:CSEND_API_CONFIG -ErrorAction SilentlyContinue
+          $env:CSEND_API_CONFIG = (Resolve-Path .\tests\api\configs\none.json).Path
 
           $env:CSEND_API_MOCK = 'malformed'
           $process = Start-Process -FilePath $exe -ArgumentList '/api', 'ping' -Wait -PassThru
