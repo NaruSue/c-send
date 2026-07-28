@@ -111,7 +111,7 @@ private:
 	BOOL m_bStatusErrorMode = FALSE;
 	BOOL m_apiBusy = FALSE;
 	int m_apiItemIndex = -1;
-	DWORD m_apiTimeoutMs = 120000;
+	DWORD m_apiTimeoutMs = 0;
 };
 
 

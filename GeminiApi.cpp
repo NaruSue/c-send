@@ -5,6 +5,7 @@
 #include <wininet.h>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "wininet.lib")
@@ -126,6 +127,82 @@ static bool ExtractResponseText(const std::string& body, CString& result)
     return found;
 }
 
+static bool ReadConfigString(const std::string& text, const char* name, CString& value)
+{
+    std::string key = "\"";
+    key += name;
+    key += "\"";
+    size_t position = text.find(key);
+    if (position == std::string::npos) return false;
+    position = text.find(':', position + key.size());
+    if (position == std::string::npos) return false;
+    ++position;
+    while (position < text.size() && (text[position] == ' ' || text[position] == '\t' || text[position] == '\r' || text[position] == '\n')) ++position;
+    return ReadJsonString(text, position, value);
+}
+
+static bool ReadConfigNumber(const std::string& text, const char* name, DWORD& value)
+{
+    std::string key = "\"";
+    key += name;
+    key += "\"";
+    size_t position = text.find(key);
+    if (position == std::string::npos) return false;
+    position = text.find(':', position + key.size());
+    if (position == std::string::npos) return false;
+    ++position;
+    while (position < text.size() && (text[position] == ' ' || text[position] == '\t' || text[position] == '\r' || text[position] == '\n')) ++position;
+    char* end = NULL;
+    unsigned long parsed = strtoul(text.c_str() + position, &end, 10);
+    if (end == text.c_str() + position || parsed > 0xFFFFFFFFUL) return false;
+    value = (DWORD)parsed;
+    return true;
+}
+
+static bool ReadConfigBool(const std::string& text, const char* name, BOOL& value)
+{
+    std::string key = "\"";
+    key += name;
+    key += "\"";
+    size_t position = text.find(key);
+    if (position == std::string::npos) return false;
+    position = text.find(':', position + key.size());
+    if (position == std::string::npos) return false;
+    ++position;
+    while (position < text.size() && (text[position] == ' ' || text[position] == '\t' || text[position] == '\r' || text[position] == '\n')) ++position;
+    if (text.compare(position, 4, "true") == 0) { value = TRUE; return true; }
+    if (text.compare(position, 5, "false") == 0) { value = FALSE; return true; }
+    return false;
+}
+
+static CString GetConfigFilePath()
+{
+    TCHAR modulePath[MAX_PATH] = {};
+    ::GetModuleFileName(NULL, modulePath, _countof(modulePath));
+    CString path(modulePath);
+    int separator = path.ReverseFind(_T('\\'));
+    if (separator >= 0) path = path.Left(separator);
+    return path + _T("\\api\\gemini.json");
+}
+
+bool LoadGeminiApiConfig(GeminiApiConfig& config)
+{
+    config = GeminiApiConfig();
+    CStringA configPath(GetConfigFilePath());
+    std::ifstream file(configPath.GetString(), std::ios::binary);
+    if (!file) return false;
+    std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    if (!ReadConfigString(text, "endpoint", config.endpoint) ||
+        !ReadConfigString(text, "path", config.path) ||
+        !ReadConfigString(text, "method", config.method) ||
+        !ReadConfigString(text, "model", config.model) ||
+        !ReadConfigNumber(text, "port", config.port) ||
+        !ReadConfigBool(text, "secure", config.secure) ||
+        !ReadConfigNumber(text, "timeoutMs", config.timeoutMs)) return false;
+    config.path.Replace(_T("{model}"), config.model);
+    return !config.endpoint.IsEmpty() && !config.path.IsEmpty() && !config.method.IsEmpty() && config.port != 0;
+}
+
 bool ReadGeminiApiKey(CString& apiKey)
 {
     apiKey.Empty();
@@ -163,6 +240,13 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
 {
     result.Empty();
     error.Empty();
+
+    GeminiApiConfig config;
+    if (!LoadGeminiApiConfig(config)) {
+        error = _T("Gemini API configuration could not be loaded.");
+        return false;
+    }
+    DWORD effectiveTimeoutMs = config.timeoutMs != 0 ? config.timeoutMs : timeoutMs;
 
     TCHAR mockMode[64] = {};
     DWORD mockLength = ::GetEnvironmentVariable(_T("CSEND_GEMINI_MOCK"), mockMode, _countof(mockMode));
@@ -203,11 +287,12 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
         error = _T("InternetOpen failed.");
         return false;
     }
-    InternetSetOption(session, INTERNET_OPTION_CONNECT_TIMEOUT, &timeoutMs, sizeof(timeoutMs));
-    InternetSetOption(session, INTERNET_OPTION_SEND_TIMEOUT, &timeoutMs, sizeof(timeoutMs));
-    InternetSetOption(session, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeoutMs, sizeof(timeoutMs));
+    InternetSetOption(session, INTERNET_OPTION_CONNECT_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
+    InternetSetOption(session, INTERNET_OPTION_SEND_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
+    InternetSetOption(session, INTERNET_OPTION_RECEIVE_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
 
-    HINTERNET connection = InternetConnect(session, _T("generativelanguage.googleapis.com"), INTERNET_DEFAULT_HTTPS_PORT,
+    CStringA endpointA(config.endpoint);
+    HINTERNET connection = InternetConnectA(session, endpointA.GetString(), (INTERNET_PORT)config.port,
         NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (connection == NULL) {
         InternetCloseHandle(session);
@@ -215,18 +300,21 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
         return false;
     }
 
-    HINTERNET request = HttpOpenRequest(connection, _T("POST"),
-        _T("/v1beta/models/gemini-3.5-flash-lite:generateContent"), NULL, NULL,
-        NULL, INTERNET_FLAG_SECURE | INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
+    DWORD requestFlags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
+    if (config.secure) requestFlags |= INTERNET_FLAG_SECURE;
+    CStringA methodA(config.method);
+    CStringA pathA(config.path);
+    HINTERNET request = HttpOpenRequestA(connection, methodA.GetString(), pathA.GetString(), NULL, NULL,
+        NULL, requestFlags, 0);
     if (request == NULL) {
         InternetCloseHandle(connection);
         InternetCloseHandle(session);
         error = _T("HttpOpenRequest failed.");
         return false;
     }
-    InternetSetOption(request, INTERNET_OPTION_CONNECT_TIMEOUT, &timeoutMs, sizeof(timeoutMs));
-    InternetSetOption(request, INTERNET_OPTION_SEND_TIMEOUT, &timeoutMs, sizeof(timeoutMs));
-    InternetSetOption(request, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeoutMs, sizeof(timeoutMs));
+    InternetSetOption(request, INTERNET_OPTION_CONNECT_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
+    InternetSetOption(request, INTERNET_OPTION_SEND_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
+    InternetSetOption(request, INTERNET_OPTION_RECEIVE_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
 
     CString headers;
     headers.Format(_T("Content-Type: application/json\r\nx-goog-api-key: %s\r\n"), apiKey.GetString());

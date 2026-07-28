@@ -3,8 +3,6 @@
 #include "GeminiApi.h"
 
 namespace {
-const DWORD kApiCommandTimeoutMs = 120000;
-
 BOOL ReadClipboardText(CString& text)
 {
     text.Empty();
@@ -118,7 +116,7 @@ int RunApiCommandLine()
     TCHAR mockMode[64] = {};
     BOOL mock = ::GetEnvironmentVariable(_T("CSEND_GEMINI_MOCK"), mockMode, _countof(mockMode)) > 0;
     BOOL success = (mock || ReadGeminiApiKey(key)) &&
-        ExecuteGeminiGenerateContent(key, prompt, kApiCommandTimeoutMs, result, error);
+        ExecuteGeminiGenerateContent(key, prompt, 0, result, error);
     if (success && !WriteClipboardText(result)) {
         ::LocalFree(argv);
         return 5;

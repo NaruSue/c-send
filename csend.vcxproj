@@ -185,7 +185,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include=".github\copilot-instructions.md" />
+    <None Include="api\gemini.json" />
   </ItemGroup>
+  <Target Name="CopyApiConfiguration" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)api" />
+    <Copy SourceFiles="$(ProjectDir)api\gemini.json" DestinationFolder="$(OutDir)api" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
