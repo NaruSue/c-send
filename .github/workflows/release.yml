@@ -73,11 +73,13 @@ jobs:
           New-Item -ItemType Directory -Path $stage | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $stage "docs") | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $stage "api") | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $stage "samples") | Out-Null
           Copy-Item -LiteralPath ".\Release\x64\csend.exe" -Destination $stage
           Copy-Item -LiteralPath ".\README.md" -Destination $stage
           Copy-Item -LiteralPath ".\LICENSE" -Destination $stage
           Copy-Item -LiteralPath ".\docs\usage.md" -Destination (Join-Path $stage "docs")
           Copy-Item -Path ".\api\*" -Destination (Join-Path $stage "api") -Recurse
+          Copy-Item -Path ".\samples\*" -Destination (Join-Path $stage "samples") -Recurse
           $zipPath = Join-Path $env:RUNNER_TEMP "${{ steps.version.outputs.zip_name }}"
           if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -Force
