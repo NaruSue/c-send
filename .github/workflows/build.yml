@@ -1,6 +1,8 @@
 name: Build
 
 on:
+  push:
+    branches: ["**"]
   workflow_dispatch:
     inputs:
       ref:
@@ -39,6 +41,24 @@ jobs:
         shell: pwsh
         run: |
           .\build.cmd Release
+
+      - name: Run API mock tests
+        shell: pwsh
+        env:
+          CSEND_GEMINI_MOCK: success
+        run: |
+          $exe = Resolve-Path .\Release\x64\csend.exe
+          $process = Start-Process -FilePath $exe -ArgumentList '/api', 'ping' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Mock success test failed: $($process.ExitCode)" }
+          if ((Get-Clipboard -Raw) -ne 'API_TEST_OK') { throw 'Mock response was not copied to the clipboard.' }
+
+          $env:CSEND_GEMINI_MOCK = 'malformed'
+          $process = Start-Process -FilePath $exe -ArgumentList '/api', 'ping' -Wait -PassThru
+          if ($process.ExitCode -ne 10) { throw "Mock malformed test failed: $($process.ExitCode)" }
+
+          $env:CSEND_GEMINI_MOCK = 'http401'
+          $process = Start-Process -FilePath $exe -ArgumentList '/api', 'ping' -Wait -PassThru
+          if ($process.ExitCode -ne 10) { throw "Mock HTTP 401 test failed: $($process.ExitCode)" }
 
       - name: Inspect release output
         if: always()

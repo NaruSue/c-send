@@ -164,6 +164,36 @@ bool ExecuteGeminiGenerateContent(const CString& apiKey, const CString& prompt,
     result.Empty();
     error.Empty();
 
+    TCHAR mockMode[64] = {};
+    DWORD mockLength = ::GetEnvironmentVariable(_T("CSEND_GEMINI_MOCK"), mockMode, _countof(mockMode));
+    if (mockLength > 0 && mockLength < _countof(mockMode)) {
+        CString mode(mockMode, (int)mockLength);
+        std::string response;
+        if (mode.CompareNoCase(_T("success")) == 0) {
+            response = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"API_TEST_OK\"}]}}]}";
+        }
+        else if (mode.CompareNoCase(_T("malformed")) == 0) {
+            response = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":}]}]}";
+        }
+        else if (mode.CompareNoCase(_T("http401")) == 0) {
+            error = _T("Gemini API returned HTTP status 401.");
+            return false;
+        }
+        else if (mode.CompareNoCase(_T("timeout")) == 0) {
+            error = _T("Gemini API request timed out.");
+            return false;
+        }
+        else {
+            error = _T("Unknown Gemini API mock mode.");
+            return false;
+        }
+        if (!ExtractResponseText(response, result) || result.IsEmpty()) {
+            error = _T("Gemini API response did not contain generated text.");
+            return false;
+        }
+        return true;
+    }
+
     std::string promptJson;
     AppendJsonString(promptJson, prompt);
     std::string requestBody = "{\"contents\":[{\"parts\":[{\"text\":" + promptJson + "}]}]}";

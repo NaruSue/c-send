@@ -50,6 +50,19 @@ if ($LASTEXITCODE -eq 0) { Get-Clipboard }
 - CLIのレスポンス表示UIは持たず、クリップボードへ格納する。
 - `ping`、`request`、`clipboard` は自動テストの基本操作として維持する。
 
+## Mockテスト
+
+GitHub Actionsなど外部APIキーを使わない自動テストでは、環境変数 `CSEND_GEMINI_MOCK` を設定する。
+
+| 値 | 動作 |
+| --- | --- |
+| `success` | `API_TEST_OK` を含む成功レスポンスを返す |
+| `malformed` | JSON形式不正レスポンスを返す |
+| `http401` | 認証エラーを返す |
+| `timeout` | タイムアウトを返す |
+
+MockモードではCredential Managerや外部Gemini APIを使用しない。実APIの疎通確認は手動または限定したワークフローで行う。
+
 ## 将来の起動中アプリ操作
 
 起動中のGUIへ操作を渡す必要が生じた場合は、既存の単一起動機構に `WM_COPYDATA` 等のIPCを追加する。その場合も本CLIの操作名と終了コードを基本仕様として引き継ぐ。
