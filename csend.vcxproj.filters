@@ -42,6 +42,15 @@
     <ClCompile Include="DataValueList.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+      <ClCompile Include="GeminiApi.cpp">
+        <Filter>Source Files</Filter>
+      </ClCompile>
+      <ClCompile Include="ApiCommand.cpp">
+        <Filter>Source Files</Filter>
+      </ClCompile>
+    <ClCompile Include="ActionListBox.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="CDataSource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -88,6 +97,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DataValueList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+      <ClInclude Include="GeminiApi.h">
+        <Filter>Header Files</Filter>
+      </ClInclude>
+      <ClInclude Include="ApiCommand.h">
+        <Filter>Header Files</Filter>
+      </ClInclude>
+    <ClInclude Include="ActionListBox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="CDataSource.h">

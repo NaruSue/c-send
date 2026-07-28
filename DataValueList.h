@@ -9,12 +9,22 @@ enum DataFileFormat {
 };
 
 struct ItemData {
+    enum ApiState {
+        API_STATE_IDLE = 0,
+        API_STATE_RUNNING = 1,
+        API_STATE_COMPLETED = 2,
+        API_STATE_FAILED = 3
+    };
+
     CString name;
     CString value;
     CString mode;
     int type;
     std::vector<std::string> jsonExtraProperties;
-    ItemData() : mode(_T("plain")), type(0) {}
+    int apiState;
+    CString apiResult;
+    CString apiError;
+    ItemData() : mode(_T("plain")), type(0), apiState(API_STATE_IDLE) {}
 };
 
 struct JsonFileMetadata {

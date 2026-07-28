@@ -12,9 +12,53 @@
 #include "ToastNotificationHelper.h"
 #include "IniTextUtil.h"
 #include "TemplateEngine.h"
+#include "GeminiApi.h"
 #include <wininet.h>
 
 #pragma comment(lib, "wininet.lib")
+#define WM_USER_API_COMPLETED (WM_APP + 611)
+
+struct ApiWorkerContext
+{
+    HWND window;
+    int itemIndex;
+    CString initialClipboard;
+    CString prompt;
+    DWORD timeoutMs;
+};
+
+struct ApiCompletion
+{
+    int itemIndex;
+    CString initialClipboard;
+    BOOL success;
+    CString result;
+    CString error;
+};
+
+static UINT ApiWorkerProc(LPVOID parameter)
+{
+    ApiWorkerContext* context = static_cast<ApiWorkerContext*>(parameter);
+    ApiCompletion* completion = new ApiCompletion();
+    completion->itemIndex = context->itemIndex;
+    completion->initialClipboard = context->initialClipboard;
+    completion->success = FALSE;
+
+    CString apiKey;
+    if (!ReadGeminiApiKey(apiKey)) {
+        completion->error = _T("Gemini API key is not configured in Windows Credential Manager.");
+    }
+    else {
+        completion->success = ExecuteGeminiGenerateContent(apiKey, context->prompt,
+            context->timeoutMs, completion->result, completion->error) ? TRUE : FALSE;
+    }
+
+    if (!::PostMessage(context->window, WM_USER_API_COMPLETED, 0, (LPARAM)completion)) {
+        delete completion;
+    }
+    delete context;
+    return 0;
+}
 
 static const GUID kTrayIconGuid =
 { 0x8c9c5d8f, 0x2a1d, 0x4b6c, { 0x9b, 0x2f, 0x6f, 0x49, 0x1a, 0x45, 0x72, 0x13 } };
@@ -163,7 +207,24 @@ static CString MakeItemLabel(const ItemData& item)
 	else if (item.mode == _T("counter")) {
 		label = _T("[C] ");
 	}
+	else if (item.mode == _T("api")) {
+		label = _T("[A] ");
+	}
 	label += item.name;
+	if (item.mode == _T("api")) {
+		if (item.apiState == ItemData::API_STATE_RUNNING) {
+			label += _T("  [Wait]");
+		}
+		else if (item.apiState == ItemData::API_STATE_COMPLETED) {
+			label += _T("  [Copy]");
+		}
+		else if (item.apiState == ItemData::API_STATE_FAILED) {
+			label += _T("  [Run]");
+		}
+		else {
+			label += _T("  [Run]");
+		}
+	}
 	return label;
 }
 
@@ -522,6 +583,8 @@ BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
 	ON_COMMAND(ID_ABOUT, OnAbout)
 	ON_COMMAND(ID_EXIT, OnExit)
 	ON_COMMAND_RANGE(ID_TRAY_ITEM_BASE, ID_TRAY_ITEM_MAX, OnTrayItemSelect)
+ ON_MESSAGE(WM_USER_API_COMPLETED, &CCsendDlg::OnApiCompleted)
+ ON_MESSAGE(WM_USER_API_RUN_ITEM, &CCsendDlg::OnApiRunItem)
  ON_CBN_SELCHANGE(IDC_COMBO_CATEGORY, &CCsendDlg::OnCbnSelchangeComboCategory)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
@@ -747,6 +810,9 @@ void CCsendDlg::OnSelchangeClist()
 
 	// 1. まずインデックスがデータの範囲内かチェック
 	if (i < m_dataList.GetCount()) {
+		if (m_dataList.Datas(i).mode == _T("api")) {
+			return;
+		}
 		if (!ResolveItemText(m_dataList.Datas(i), text)) {
 			return;
 		}
@@ -844,6 +910,10 @@ void CCsendDlg::OnDblclkClist()
 	if( i < 0 || i >= m_dataList.GetCount() ){
         return;
     }
+	if (m_dataList.Datas(i).mode == _T("api")) {
+		ExecuteApiItem(i);
+		return;
+	}
 
 	CInputBox cInput;
 	CString InputWindowName(_T("内容確認"));
@@ -864,6 +934,10 @@ BOOL CCsendDlg::ConfirmExit()
 // ウインドウを閉じるときに呼ばれます
 void CCsendDlg::OnClose() 
 {
+	if (m_apiBusy) {
+		AfxMessageBox(_T("API processing is still running. Please wait until it finishes."), MB_OK | MB_ICONINFORMATION);
+		return;
+	}
 	// TODO: この位置にメッセージ ハンドラ用のコードを追加するかまたはデフォルトの処理を呼び出してください
 // Make-->
 	if (!ConfirmExit()) {
@@ -1160,9 +1234,170 @@ void CCsendDlg::ChangeMessage()
 }
 // <--Make
 
+
+BOOL CCsendDlg::ReadClipBoard(CString& text)
+{
+    text.Empty();
+    if (!OpenClipboard()) return FALSE;
+
+    HANDLE unicodeHandle = GetClipboardData(CF_UNICODETEXT);
+    if (unicodeHandle != NULL) {
+        LPCWSTR value = static_cast<LPCWSTR>(GlobalLock(unicodeHandle));
+        if (value != NULL) {
+#ifdef _UNICODE
+            text = value;
+#else
+            int length = WideCharToMultiByte(CP_ACP, 0, value, -1, NULL, 0, NULL, NULL);
+            if (length > 0) {
+                std::vector<char> buffer((size_t)length);
+                WideCharToMultiByte(CP_ACP, 0, value, -1, buffer.data(), length, NULL, NULL);
+                text = buffer.data();
+            }
+#endif
+            GlobalUnlock(unicodeHandle);
+            CloseClipboard();
+            return TRUE;
+        }
+    }
+
+    HANDLE textHandle = GetClipboardData(CF_TEXT);
+    if (textHandle != NULL) {
+        LPCSTR value = static_cast<LPCSTR>(GlobalLock(textHandle));
+        if (value != NULL) {
+            text = value;
+            GlobalUnlock(textHandle);
+            CloseClipboard();
+            return TRUE;
+        }
+    }
+    CloseClipboard();
+    return TRUE;
+}
+
+void CCsendDlg::ExecuteApiItem(int index)
+{
+    if (m_apiBusy || index < 0 || index >= m_dataList.GetCount()) return;
+    if (m_dataList.Datas(index).mode != _T("api")) return;
+
+    CString apiKey;
+    if (!ReadGeminiApiKey(apiKey)) {
+        CString keyTitle = _T("Gemini API Key");
+        CString enteredKey;
+        CInputBox keyDialog;
+        keyDialog.SetInputText(keyTitle, enteredKey);
+        keyDialog.SetWindowName(_T("Gemini API Key"));
+        keyDialog.SetTemplateEnabled(FALSE);
+        if (keyDialog.DoModal() != IDOK) return;
+        keyDialog.GetInputText(keyTitle, enteredKey);
+        if (!WriteGeminiApiKey(enteredKey)) {
+            AfxMessageBox(_T("Gemini API key could not be saved to Windows Credential Manager."), MB_OK | MB_ICONERROR);
+            return;
+        }
+    }
+
+    CString clipboard;
+    if (!ReadClipBoard(clipboard)) {
+        AfxMessageBox(_T("クリップボードを読み取れません。"), MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    CString prompt = m_dataList.Datas(index).value;
+    prompt.Replace(_T("{{clipboard}}"), clipboard);
+    prompt.Replace(_T("{{input}}"), clipboard);
+
+    ApiWorkerContext* context = new ApiWorkerContext();
+    context->window = m_hWnd;
+    context->itemIndex = index;
+    context->initialClipboard = clipboard;
+    context->prompt = prompt;
+    context->timeoutMs = m_apiTimeoutMs;
+
+    m_apiBusy = TRUE;
+    m_apiItemIndex = index;
+    m_dataList.Datas(index).apiState = ItemData::API_STATE_RUNNING;
+    m_dataList.Datas(index).apiResult.Empty();
+    m_dataList.Datas(index).apiError.Empty();
+    m_CList.EnableWindow(FALSE);
+    m_CCombo.EnableWindow(FALSE);
+    SetWindowText(_T("C-Send - Gemini API running..."));
+    m_CList.Invalidate();
+
+    if (AfxBeginThread(ApiWorkerProc, context) == NULL) {
+        delete context;
+        m_apiBusy = FALSE;
+        m_apiItemIndex = -1;
+        m_dataList.Datas(index).apiState = ItemData::API_STATE_FAILED;
+        m_dataList.Datas(index).apiError = _T("API worker could not be started.");
+        m_CList.EnableWindow(TRUE);
+        m_CCombo.EnableWindow(TRUE);
+        AfxMessageBox(m_dataList.Datas(index).apiError, MB_OK | MB_ICONERROR);
+    }
+}
+
+
+LRESULT CCsendDlg::OnApiRunItem(WPARAM wParam, LPARAM)
+{
+    int index = (int)wParam;
+    if (index < 0 || index >= m_dataList.GetCount() || m_dataList.Datas(index).mode != _T("api")) return 0;
+    if (m_dataList.Datas(index).apiState == ItemData::API_STATE_COMPLETED && !m_dataList.Datas(index).apiResult.IsEmpty()) {
+        CString result = m_dataList.Datas(index).apiResult;
+        if (SendClipBoard(result)) ShowCopyFeedback(m_dataList.Datas(index).name);
+    }
+    else {
+        ExecuteApiItem(index);
+    }
+    return 1;
+}
+
+LRESULT CCsendDlg::OnApiCompleted(WPARAM, LPARAM lParam)
+{
+    ApiCompletion* completion = reinterpret_cast<ApiCompletion*>(lParam);
+    if (completion == NULL) return 0;
+
+    int index = completion->itemIndex;
+    if (!m_apiBusy || index != m_apiItemIndex || index < 0 || index >= m_dataList.GetCount()) {
+        delete completion;
+        return 0;
+    }
+
+    ItemData& item = m_dataList.Datas(index);
+    item.apiState = completion->success ? ItemData::API_STATE_COMPLETED : ItemData::API_STATE_FAILED;
+    item.apiResult = completion->result;
+    item.apiError = completion->error;
+
+    m_apiBusy = FALSE;
+    m_apiItemIndex = -1;
+    m_CList.EnableWindow(TRUE);
+    m_CCombo.EnableWindow(TRUE);
+
+    if (completion->success) {
+        CString currentClipboard;
+        BOOL canRead = ReadClipBoard(currentClipboard);
+        if (canRead && (currentClipboard.IsEmpty() || currentClipboard == completion->initialClipboard)) {
+            if (SendClipBoard(item.apiResult)) {
+                ShowCopyFeedback(item.name);
+            }
+        }
+        SetWindowText(MakeWindowTitle(item.name, m_bCurrentCategoryIsReadOnly));
+    }
+    else {
+        CString message = item.apiError;
+        if (message.IsEmpty()) message = _T("Gemini API request failed.");
+        AfxMessageBox(message, MB_OK | MB_ICONERROR);
+        SetWindowText(MakeWindowTitle(item.name, m_bCurrentCategoryIsReadOnly));
+    }
+
+    m_CList.Invalidate();
+    delete completion;
+    return 0;
+}
 void CCsendDlg::ActivateListItem(int index)
 {
     if (index < 0 || index >= m_dataList.GetCount()) {
+        return;
+    }
+    if (m_dataList.Datas(index).mode == _T("api")) {
+        ExecuteApiItem(index);
         return;
     }
 

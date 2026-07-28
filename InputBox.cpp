@@ -36,6 +36,7 @@ void CInputBox::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_EDIT2, m_ETitle);
 	DDX_Control(pDX, IDC_RADIO_PLAIN, m_RadioPlain);
 	DDX_Control(pDX, IDC_RADIO_TEMPLATE, m_RadioTemplate);
+	DDX_Control(pDX, IDC_RADIO_API, m_RadioApi);
 	//}}AFX_DATA_MAP
 }
 
@@ -63,7 +64,7 @@ void CInputBox::GetInputText(CString& title, CString& text )
 void CInputBox::SetMode(const CString& mode)
 {
 	m_Mode = mode;
-	if (m_Mode != _T("plain") && m_Mode != _T("template") && m_Mode != _T("counter")) {
+	if (m_Mode != _T("plain") && m_Mode != _T("template") && m_Mode != _T("counter") && m_Mode != _T("api")) {
 		m_Mode = _T("plain");
 	}
 }
@@ -107,6 +108,7 @@ void CInputBox::ApplyFontAndLayout()
 	m_ETitle.SetFont(&m_dialogFont);
 	m_RadioPlain.SetFont(&m_dialogFont);
 	m_RadioTemplate.SetFont(&m_dialogFont);
+	m_RadioApi.SetFont(&m_dialogFont);
 	CWnd* pOK = GetDlgItem(IDOK);
 	if (pOK != NULL) {
 		pOK->SetFont(&m_dialogFont);
@@ -123,7 +125,7 @@ void CInputBox::ApplyFontAndLayout()
 		scale = 1.0;
 	}
 	if (scale != 1.0) {
-		const UINT ids[] = { IDC_EDIT1, IDC_EDIT2, IDC_RADIO_PLAIN, IDC_RADIO_TEMPLATE, IDOK, IDCANCEL };
+		const UINT ids[] = { IDC_EDIT1, IDC_EDIT2, IDC_RADIO_PLAIN, IDC_RADIO_TEMPLATE, IDC_RADIO_API, IDOK, IDCANCEL };
 		ApplyScaledLayout(this, scale, scale, ids, _countof(ids));
 	}
 }
@@ -176,10 +178,13 @@ BOOL CInputBox::OnInitDialog()
 
 	m_RadioPlain.SetCheck(m_Mode == _T("plain") ? BST_CHECKED : BST_UNCHECKED);
 	m_RadioTemplate.SetCheck(m_Mode == _T("template") ? BST_CHECKED : BST_UNCHECKED);
+	m_RadioApi.SetCheck(m_Mode == _T("api") ? BST_CHECKED : BST_UNCHECKED);
 	if (!m_bTemplateEnabled) {
 		m_RadioPlain.SetCheck(BST_CHECKED);
 		m_RadioTemplate.SetCheck(BST_UNCHECKED);
+	m_RadioApi.SetCheck(BST_UNCHECKED);
 		m_RadioTemplate.EnableWindow(FALSE);
+	m_RadioApi.EnableWindow(FALSE);
 	}
 
 	if( m_bViewOnly ){
@@ -191,6 +196,7 @@ BOOL CInputBox::OnInitDialog()
 		}
 		m_RadioPlain.EnableWindow(FALSE);
 		m_RadioTemplate.EnableWindow(FALSE);
+	m_RadioApi.EnableWindow(FALSE);
 	}
 
 	if( m_InputText.GetLength() ){
@@ -242,6 +248,9 @@ void CInputBox::OnOK()
 	}
 	else if (m_RadioTemplate.GetCheck() == BST_CHECKED) {
 		m_Mode = _T("template");
+	}
+	else if (m_RadioApi.GetCheck() == BST_CHECKED) {
+		m_Mode = _T("api");
 	}
 
 	CDialog::OnOK();

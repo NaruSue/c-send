@@ -137,6 +137,9 @@
     <ClCompile Include="csend.cpp" />
     <ClCompile Include="csendDlg.cpp" />
     <ClCompile Include="DataValueList.cpp" />
+    <ClCompile Include="GeminiApi.cpp" />
+    <ClCompile Include="ApiCommand.cpp" />
+    <ClCompile Include="ActionListBox.cpp" />
     <ClCompile Include="ClipboardTipWnd.cpp" />
     <ClCompile Include="InputBox.cpp" />
     <ClCompile Include="JsonDataFile.cpp" />
@@ -162,6 +165,9 @@
     <ClInclude Include="csend.h" />
     <ClInclude Include="csendDlg.h" />
     <ClInclude Include="DataValueList.h" />
+    <ClInclude Include="GeminiApi.h" />
+    <ClInclude Include="ApiCommand.h" />
+    <ClInclude Include="ActionListBox.h" />
     <ClInclude Include="ClipboardTipWnd.h" />
     <ClInclude Include="InputBox.h" />
     <ClInclude Include="JsonDataFile.h" />

@@ -24,6 +24,7 @@ public:
 	CEdit	m_ETitle;
 	CButton	m_RadioPlain;
 	CButton	m_RadioTemplate;
+	CButton	m_RadioApi;
 	//}}AFX_DATA
 
 

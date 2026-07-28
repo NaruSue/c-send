@@ -378,7 +378,8 @@ private:
             else if (key == "mode") {
                 std::string value;
                 if (hasMode || !ParseString(value) || !Utf8ToCString(value, item.mode)) return false;
-                if (item.mode != _T("plain") && item.mode != _T("template") && item.mode != _T("counter")) return false;
+                if (item.mode != _T("plain") && item.mode != _T("template") &&
+                    item.mode != _T("counter") && item.mode != _T("api")) return false;
                 hasMode = true;
             }
             else if (key == "options") {

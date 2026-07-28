@@ -3,6 +3,8 @@
 #include "CategoryDataList.h"
 #include "DataValueList.h"
 #include "ClipboardTipWnd.h"
+#include "GeminiApi.h"
+#include "ActionListBox.h"
 
 /////////////////////////////////////////////////////////////////////////////
 // CCsendDlg dialog
@@ -27,11 +29,12 @@ public:
 	void RestoreMainWindow();
 	void BuildTrayMenu(CMenu& menu);
 	void BuildListContextMenu(CMenu& menu);
+	void ExecuteApiItem(int index);
 
 // Dialog Data
 	//{{AFX_DATA(CCsendDlg)
 	enum { IDD = IDD_CSEND_DIALOG };
-	CListBox	m_CList;
+	CActionListBox	m_CList;
 	CComboBox m_CCombo;
 	//}}AFX_DATA
 	CEdit	m_StatusText;
@@ -48,6 +51,7 @@ protected:
 	void DeleteString(void);
 	void ActivateListItem(int index);
 	BOOL SendClipBoard( CString& text );
+	BOOL ReadClipBoard(CString& text);
 	BOOL ConfirmExit();
 	HICON m_hIcon;
 	CString m_appPath;
@@ -85,6 +89,8 @@ protected:
 	afx_msg void OnAbout();
 	afx_msg void OnExit();
 	afx_msg void OnTrayItemSelect(UINT nID);
+	afx_msg LRESULT OnApiCompleted(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnApiRunItem(WPARAM wParam, LPARAM lParam);
  afx_msg void OnCbnSelchangeComboCategory();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
@@ -103,6 +109,9 @@ private:
 	CClipboardTipWnd m_tipWnd;
 	CString m_statusMessage;
 	BOOL m_bStatusErrorMode = FALSE;
+	BOOL m_apiBusy = FALSE;
+	int m_apiItemIndex = -1;
+	DWORD m_apiTimeoutMs = 120000;
 };
 
 
