@@ -42,9 +42,27 @@
     <ClCompile Include="DataValueList.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-      <ClCompile Include="ApiClient.cpp">
-        <Filter>Source Files</Filter>
-      </ClCompile>
+    <ClCompile Include="ApiClient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiCatalog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiActionDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiConfigDocument.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiDetailDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiListDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ApiJson.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
       <ClCompile Include="ApiCommand.cpp">
         <Filter>Source Files</Filter>
       </ClCompile>
@@ -99,9 +117,27 @@
     <ClInclude Include="DataValueList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-      <ClInclude Include="ApiClient.h">
-        <Filter>Header Files</Filter>
-      </ClInclude>
+    <ClInclude Include="ApiClient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiCatalog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiActionDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiConfigDocument.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiDetailDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiListDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ApiJson.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
       <ClInclude Include="ApiCommand.h">
         <Filter>Header Files</Filter>
       </ClInclude>

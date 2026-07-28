@@ -557,6 +557,18 @@ static bool EvaluateCommand(const CString& expression, CString& result, CString&
 {
     CString command(expression);
     command.Trim();
+    int fallbackSeparator = command.Find(_T('|'));
+    if (fallbackSeparator >= 0 && command.Left(fallbackSeparator).Trim() == _T("clipboard")) {
+        CString fallback = command.Mid(fallbackSeparator + 1);
+        fallback.TrimLeft();
+        fallback.TrimRight();
+        if (!ReadClipboardText(result)) {
+            error = _T("Clipboard could not be read.");
+            return false;
+        }
+        if (result.IsEmpty()) result = fallback;
+        return true;
+    }
     CString argumentText;
     int open = command.Find('(');
     if (open >= 0) {
@@ -675,6 +687,40 @@ bool EvaluateTemplate(const CString& source, CString& output, CString& error)
             return false;
         }
         output += replacement;
+        pos = close + 2;
+    }
+    return true;
+}
+
+bool ExpandClipboardTags(const CString& source, const CString& clipboard, CString& output)
+{
+    output.Empty();
+    int pos = 0;
+    while (pos < source.GetLength()) {
+        int open = source.Find(_T("{{"), pos);
+        if (open < 0) {
+            output += source.Mid(pos);
+            return true;
+        }
+        output += source.Mid(pos, open - pos);
+        int close = source.Find(_T("}}"), open + 2);
+        if (close < 0) return false;
+        CString expression = source.Mid(open + 2, close - open - 2);
+        CString command(expression);
+        command.Trim();
+        int separator = command.Find(_T('|'));
+        if (command == _T("clipboard")) {
+            output += clipboard;
+        }
+        else if (separator >= 0 && command.Left(separator).Trim() == _T("clipboard")) {
+            CString fallback = command.Mid(separator + 1);
+            fallback.TrimLeft();
+            fallback.TrimRight();
+            output += clipboard.IsEmpty() ? fallback : clipboard;
+        }
+        else {
+            output += source.Mid(open, close - open + 2);
+        }
         pos = close + 2;
     }
     return true;

@@ -1,0 +1,33 @@
+{
+  "id": "mock-structured",
+  "name": "Mock structured API",
+  "baseUrl": "https://mock.invalid",
+  "timeoutMs": 120000,
+  "authType": "none",
+  "keyConfig": {},
+  "actions": [
+    {
+      "id": "generate",
+      "name": "Generate",
+      "url": "/v1/mock",
+      "method": "POST",
+      "description": "Structured request and response test",
+      "request": {
+        "input": "{{value}}"
+      },
+      "response": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "{{value}}"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -138,6 +138,12 @@
     <ClCompile Include="csendDlg.cpp" />
     <ClCompile Include="DataValueList.cpp" />
     <ClCompile Include="ApiClient.cpp" />
+    <ClCompile Include="ApiCatalog.cpp" />
+    <ClCompile Include="ApiActionDlg.cpp" />
+    <ClCompile Include="ApiConfigDocument.cpp" />
+    <ClCompile Include="ApiDetailDlg.cpp" />
+    <ClCompile Include="ApiJson.cpp" />
+    <ClCompile Include="ApiListDlg.cpp" />
     <ClCompile Include="ApiCommand.cpp" />
     <ClCompile Include="ActionListBox.cpp" />
     <ClCompile Include="ClipboardTipWnd.cpp" />
@@ -166,6 +172,12 @@
     <ClInclude Include="csendDlg.h" />
     <ClInclude Include="DataValueList.h" />
     <ClInclude Include="ApiClient.h" />
+    <ClInclude Include="ApiCatalog.h" />
+    <ClInclude Include="ApiActionDlg.h" />
+    <ClInclude Include="ApiConfigDocument.h" />
+    <ClInclude Include="ApiDetailDlg.h" />
+    <ClInclude Include="ApiJson.h" />
+    <ClInclude Include="ApiListDlg.h" />
     <ClInclude Include="ApiCommand.h" />
     <ClInclude Include="ActionListBox.h" />
     <ClInclude Include="ClipboardTipWnd.h" />
@@ -185,11 +197,14 @@
   </ItemGroup>
   <ItemGroup>
     <None Include=".github\copilot-instructions.md" />
-    <None Include="api\gemini.json" />
+    <None Include="api\*.json" />
   </ItemGroup>
   <Target Name="CopyApiConfiguration" AfterTargets="Build">
     <MakeDir Directories="$(OutDir)api" />
-    <Copy SourceFiles="$(ProjectDir)api\gemini.json" DestinationFolder="$(OutDir)api" />
+    <ItemGroup>
+      <ApiConfiguration Include="$(ProjectDir)api\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ApiConfiguration)" DestinationFolder="$(OutDir)api" SkipUnchangedFiles="true" />
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

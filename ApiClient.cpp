@@ -1,14 +1,18 @@
 #include "stdafx.h"
 #include "ApiClient.h"
+#include "ApiCatalog.h"
+#include "ApiConfigDocument.h"
 
 #include <wincred.h>
 #include <wininet.h>
 #include <string>
 #include <vector>
 #include <fstream>
+#include <wincrypt.h>
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "wininet.lib")
+#pragma comment(lib, "crypt32.lib")
 
 static bool CStringToUtf8(const CString& input, std::string& output)
 {
@@ -54,175 +58,177 @@ static bool Utf8ToCString(const std::string& input, CString& output)
     return true;
 }
 
-static void AppendJsonString(std::string& output, const CString& value)
+static bool GetConfigFilePath(CString& filePath)
 {
-    std::string utf8;
-    if (!CStringToUtf8(value, utf8)) return;
-    output += '"';
-    for (size_t i = 0; i < utf8.size(); ++i) {
-        unsigned char c = (unsigned char)utf8[i];
-        switch (c) {
-        case '"': output += "\\\""; break;
-        case '\\': output += "\\\\"; break;
-        case '\b': output += "\\b"; break;
-        case '\f': output += "\\f"; break;
-        case '\n': output += "\\n"; break;
-        case '\r': output += "\\r"; break;
-        case '\t': output += "\\t"; break;
-        default: output += (char)c; break;
+    filePath.Empty();
+    TCHAR overridePath[MAX_PATH] = {};
+    DWORD overrideLength = ::GetEnvironmentVariable(_T("CSEND_API_CONFIG"), overridePath, _countof(overridePath));
+    if (overrideLength > 0 && overrideLength < _countof(overridePath)) {
+        filePath = overridePath;
+        return true;
+    }
+
+    std::vector<ApiDefinitionSummary> definitions;
+    if (!LoadApiDefinitions(definitions) || definitions.size() != 1) return false;
+    filePath = definitions[0].filePath;
+    return !filePath.IsEmpty();
+}
+
+static bool LoadApiConfigFile(const CString& filePath, const CString& actionId, ApiConfig& config)
+{
+    config = ApiConfig();
+    ApiConfigDocument document;
+    CString loadError;
+    if (!LoadApiConfigDocument(filePath, document, loadError)) return false;
+    const ApiActionDocument* action = NULL;
+    for (size_t index = 0; index < document.actions.size(); ++index) {
+        if ((actionId.IsEmpty() && index == 0) ||
+            document.actions[index].id.CompareNoCase(actionId) == 0) {
+            action = &document.actions[index];
+            break;
         }
     }
-    output += '"';
-}
+    if (action == NULL) return false;
 
-static bool ReadJsonString(const std::string& text, size_t& position, CString& value)
-{
-    if (position >= text.size() || text[position] != '"') return false;
-    ++position;
-    std::string decoded;
-    while (position < text.size()) {
-        unsigned char c = (unsigned char)text[position++];
-        if (c == '"') return Utf8ToCString(decoded, value);
-        if (c != '\\') {
-            decoded += (char)c;
-            continue;
-        }
-        if (position >= text.size()) return false;
-        char escaped = text[position++];
-        switch (escaped) {
-        case '"': decoded += '"'; break;
-        case '\\': decoded += '\\'; break;
-        case '/': decoded += '/'; break;
-        case 'b': decoded += '\b'; break;
-        case 'f': decoded += '\f'; break;
-        case 'n': decoded += '\n'; break;
-        case 'r': decoded += '\r'; break;
-        case 't': decoded += '\t'; break;
-        default: return false;
+    URL_COMPONENTS components = {};
+    components.dwStructSize = sizeof(components);
+    TCHAR host[512] = {};
+    TCHAR urlPath[2048] = {};
+    components.lpszHostName = host;
+    components.dwHostNameLength = _countof(host);
+    components.lpszUrlPath = urlPath;
+    components.dwUrlPathLength = _countof(urlPath);
+    if (!InternetCrackUrl(document.baseUrl, 0, 0, &components)) return false;
+    config.endpoint.SetString(host, components.dwHostNameLength);
+    config.secure = components.nScheme == INTERNET_SCHEME_HTTPS;
+    config.port = components.nPort;
+    CString basePath;
+    basePath.SetString(urlPath, components.dwUrlPathLength);
+    basePath.TrimRight(_T('/'));
+    CString actionPath(action->url);
+    if (!actionPath.IsEmpty() && actionPath[0] != _T('/')) actionPath = _T("/") + actionPath;
+    config.path = basePath + actionPath;
+    if (config.path.IsEmpty()) config.path = _T("/");
+    config.method = action->method;
+    config.timeoutMs = document.timeoutMs;
+    config.authType = document.authType;
+    config.credentialId = document.credentialId;
+    const ApiJsonValue* header = document.keyConfig.Find(_T("headerName"));
+    const ApiJsonValue* query = document.keyConfig.Find(_T("queryName"));
+    const ApiJsonValue* prefix = document.keyConfig.Find(_T("prefix"));
+    if (header != NULL && header->type == ApiJsonValue::TYPE_STRING) config.authHeader = header->scalar;
+    if (query != NULL && query->type == ApiJsonValue::TYPE_STRING) config.queryName = query->scalar;
+    if (prefix != NULL && prefix->type == ApiJsonValue::TYPE_STRING) config.prefix = prefix->scalar;
+    const CString staticHeaderPrefix = _T("staticHeader.");
+    for (size_t index = 0; index < document.keyConfig.keys.size(); ++index) {
+        const CString& key = document.keyConfig.keys[index];
+        const ApiJsonValue& value = document.keyConfig.children[index];
+        if (key.Left(staticHeaderPrefix.GetLength()).CompareNoCase(staticHeaderPrefix) == 0 &&
+            value.type == ApiJsonValue::TYPE_STRING) {
+            CString headerName = key.Mid(staticHeaderPrefix.GetLength());
+            config.staticHeaders += headerName + _T(": ") + value.scalar + _T("\r\n");
         }
     }
-    return false;
-}
-
-static bool ExtractResponseText(const std::string& body, const CString& responsePath, CString& result)
-{
-    CString path = responsePath;
-    int separator = path.ReverseFind(_T('.'));
-    if (separator >= 0) path = path.Mid(separator + 1);
-    path.Replace(_T("[]"), _T(""));
-    CStringA pathA(path);
-    std::string key = "\"";
-    key += pathA.GetString();
-    key += "\"";
-    size_t textPosition = body.find(key);
-    if (textPosition == std::string::npos) return false;
-    result.Empty();
-    bool found = false;
-    while (textPosition != std::string::npos) {
-        size_t colon = body.find(':', textPosition + key.size());
-        if (colon == std::string::npos) break;
-        ++colon;
-        while (colon < body.size() && (body[colon] == ' ' || body[colon] == '\t' || body[colon] == '\r' || body[colon] == '\n')) ++colon;
-        CString part;
-        size_t cursor = colon;
-        if (ReadJsonString(body, cursor, part)) {
-            result += part;
-            found = true;
-        }
-        textPosition = body.find(key, colon + 1);
+    config.requestJson = action->request;
+    config.hasRequestBody = action->request.type != ApiJsonValue::TYPE_NULL;
+    config.responseJson = action->response;
+    if (config.authType.CompareNoCase(_T("api-key-header")) == 0) {
+        if (config.credentialId.IsEmpty()) return false;
+        if (config.authHeader.IsEmpty()) return false;
     }
-    return found;
-}
-
-static bool ReadConfigString(const std::string& text, const char* name, CString& value)
-{
-    std::string key = "\"";
-    key += name;
-    key += "\"";
-    size_t position = text.find(key);
-    if (position == std::string::npos) return false;
-    position = text.find(':', position + key.size());
-    if (position == std::string::npos) return false;
-    ++position;
-    while (position < text.size() && (text[position] == ' ' || text[position] == '\t' || text[position] == '\r' || text[position] == '\n')) ++position;
-    return ReadJsonString(text, position, value);
-}
-
-static bool ReadConfigNumber(const std::string& text, const char* name, DWORD& value)
-{
-    std::string key = "\"";
-    key += name;
-    key += "\"";
-    size_t position = text.find(key);
-    if (position == std::string::npos) return false;
-    position = text.find(':', position + key.size());
-    if (position == std::string::npos) return false;
-    ++position;
-    while (position < text.size() && (text[position] == ' ' || text[position] == '\t' || text[position] == '\r' || text[position] == '\n')) ++position;
-    char* end = NULL;
-    unsigned long parsed = strtoul(text.c_str() + position, &end, 10);
-    if (end == text.c_str() + position || parsed > 0xFFFFFFFFUL) return false;
-    value = (DWORD)parsed;
-    return true;
-}
-
-static bool ReadConfigBool(const std::string& text, const char* name, BOOL& value)
-{
-    std::string key = "\"";
-    key += name;
-    key += "\"";
-    size_t position = text.find(key);
-    if (position == std::string::npos) return false;
-    position = text.find(':', position + key.size());
-    if (position == std::string::npos) return false;
-    ++position;
-    while (position < text.size() && (text[position] == ' ' || text[position] == '\t' || text[position] == '\r' || text[position] == '\n')) ++position;
-    if (text.compare(position, 4, "true") == 0) { value = TRUE; return true; }
-    if (text.compare(position, 5, "false") == 0) { value = FALSE; return true; }
-    return false;
-}
-
-static CString GetConfigFilePath()
-{
-    TCHAR modulePath[MAX_PATH] = {};
-    ::GetModuleFileName(NULL, modulePath, _countof(modulePath));
-    CString path(modulePath);
-    int separator = path.ReverseFind(_T('\\'));
-    if (separator >= 0) path = path.Left(separator);
-    return path + _T("\\api\\gemini.json");
+    else if (config.authType.CompareNoCase(_T("api-key-query")) == 0) {
+        if (config.credentialId.IsEmpty()) return false;
+        if (config.queryName.IsEmpty()) return false;
+    }
+    else if (config.authType.CompareNoCase(_T("bearer")) == 0) {
+        if (config.credentialId.IsEmpty()) return false;
+        if (config.authHeader.IsEmpty()) config.authHeader = _T("Authorization");
+        if (config.prefix.IsEmpty()) config.prefix = _T("Bearer ");
+    }
+    else if (config.authType.CompareNoCase(_T("basic")) == 0) {
+        if (config.credentialId.IsEmpty()) return false;
+    }
+    else if (config.authType.CompareNoCase(_T("none")) != 0) return false;
+    return !config.endpoint.IsEmpty() && !config.path.IsEmpty() && !config.method.IsEmpty() &&
+        !config.authType.IsEmpty() && (!config.hasRequestBody || ApiJsonContainsValueMarker(config.requestJson)) &&
+        ApiJsonContainsValueMarker(config.responseJson) && config.port != 0;
 }
 
 bool LoadApiConfig(ApiConfig& config)
 {
-    config = ApiConfig();
-    CStringA configPath(GetConfigFilePath());
-    std::ifstream file(configPath.GetString(), std::ios::binary);
-    if (!file) return false;
-    std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    if (!ReadConfigString(text, "endpoint", config.endpoint) ||
-        !ReadConfigString(text, "path", config.path) ||
-        !ReadConfigString(text, "method", config.method) ||
-        !ReadConfigString(text, "model", config.model) ||
-        !ReadConfigNumber(text, "port", config.port) ||
-        !ReadConfigBool(text, "secure", config.secure) ||
-        !ReadConfigNumber(text, "timeoutMs", config.timeoutMs) ||
-        !ReadConfigString(text, "authType", config.authType) ||
-        !ReadConfigString(text, "credentialTarget", config.credentialTarget) ||
-        !ReadConfigString(text, "authHeader", config.authHeader) ||
-        !ReadConfigString(text, "requestTemplate", config.requestTemplate) ||
-        !ReadConfigString(text, "responsePath", config.responsePath)) return false;
-    config.path.Replace(_T("{model}"), config.model);
-    return !config.endpoint.IsEmpty() && !config.path.IsEmpty() && !config.method.IsEmpty() &&
-        !config.authType.IsEmpty() && !config.credentialTarget.IsEmpty() && !config.authHeader.IsEmpty() &&
-        !config.requestTemplate.IsEmpty() && !config.responsePath.IsEmpty() && config.port != 0;
+    CString filePath;
+    return GetConfigFilePath(filePath) && LoadApiConfigFile(filePath, CString(), config);
 }
 
-bool ReadApiCredential(CString& apiKey)
+bool LoadApiConfigSelection(const CString& apiId, const CString& actionId, ApiConfig& config)
+{
+    if (apiId.IsEmpty()) return LoadApiConfig(config);
+    std::vector<ApiDefinitionSummary> definitions;
+    if (!LoadApiDefinitions(definitions)) return false;
+    for (size_t index = 0; index < definitions.size(); ++index) {
+        if (definitions[index].id.CompareNoCase(apiId) == 0) {
+            return LoadApiConfigFile(definitions[index].filePath, actionId, config);
+        }
+    }
+    return false;
+}
+
+bool ApiRequiresCredential(const ApiConfig& config)
+{
+    return config.authType.CompareNoCase(_T("none")) != 0;
+}
+
+CString GetApiCredentialTarget(const ApiConfig& config, const CString& field)
+{
+    CString target;
+    target.Format(_T("C-Send/API/%s/%s"), config.credentialId.GetString(), field.GetString());
+    return target;
+}
+
+bool ValidateApiCredentials(const ApiConfig& config, CString& error)
+{
+    error.Empty();
+    if (!ApiRequiresCredential(config)) return true;
+    if (config.credentialId.IsEmpty()) {
+        error = _T("ƒNƒŒƒfƒ“ƒVƒƒƒ‹ID‚ªÝ’è‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB");
+        return false;
+    }
+    if (config.authType.CompareNoCase(_T("basic")) == 0) {
+        CString username;
+        CString password;
+        const bool haveUsername =
+            ReadApiCredentialValue(GetApiCredentialTarget(config, _T("username")), username) &&
+            !username.IsEmpty();
+        const bool havePassword =
+            ReadApiCredentialValue(GetApiCredentialTarget(config, _T("password")), password) &&
+            !password.IsEmpty();
+        if (!haveUsername && !havePassword) {
+            error = _T("Basic”FØ‚ÌID‚ÆPASS‚ª“o˜^‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB");
+            return false;
+        }
+        if (!haveUsername) {
+            error = _T("Basic”FØ‚ÌID‚ª“o˜^‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB");
+            return false;
+        }
+        if (!havePassword) {
+            error = _T("Basic”FØ‚ÌPASS‚ª“o˜^‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB");
+            return false;
+        }
+        return true;
+    }
+    CString token;
+    if (!ReadApiCredentialValue(GetApiCredentialTarget(config, _T("token")), token) ||
+        token.IsEmpty()) {
+        error = _T("API token‚ª“o˜^‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB");
+        return false;
+    }
+    return true;
+}
+
+bool ReadApiCredentialValue(const CString& target, CString& apiKey)
 {
     apiKey.Empty();
-    ApiConfig config;
-    if (!LoadApiConfig(config)) return false;
-    CStringW targetW(config.credentialTarget);
+    CStringW targetW(target);
     PCREDENTIALW credential = NULL;
     if (!CredReadW(targetW.GetString(), CRED_TYPE_GENERIC, 0, &credential)) {
         return false;
@@ -237,16 +243,14 @@ bool ReadApiCredential(CString& apiKey)
     return !apiKey.IsEmpty();
 }
 
-bool WriteApiCredential(const CString& apiKey)
+bool WriteApiCredentialValue(const CString& target, const CString& apiKey)
 {
-    ApiConfig config;
-    if (!LoadApiConfig(config)) return false;
     std::string utf8;
     if (apiKey.IsEmpty() || !CStringToUtf8(apiKey, utf8)) return false;
 
     CREDENTIALW credential = {};
     credential.Type = CRED_TYPE_GENERIC;
-    CStringW targetW(config.credentialTarget);
+    CStringW targetW(target);
     credential.TargetName = const_cast<LPWSTR>(targetW.GetString());
     credential.UserName = const_cast<LPWSTR>(L"C-Send");
     credential.CredentialBlobSize = (DWORD)utf8.size();
@@ -255,66 +259,160 @@ bool WriteApiCredential(const CString& apiKey)
     return CredWriteW(&credential, 0) == TRUE;
 }
 
-bool ExecuteApiAction(const CString& apiKey, const CString& prompt,
-    DWORD timeoutMs, CString& result, CString& error)
+bool ReadApiCredential(CString& apiKey)
+{
+    ApiConfig config;
+    return LoadApiConfig(config) &&
+        ReadApiCredentialValue(GetApiCredentialTarget(config, _T("token")), apiKey);
+}
+
+bool WriteApiCredential(const CString& apiKey)
+{
+    ApiConfig config;
+    return LoadApiConfig(config) &&
+        WriteApiCredentialValue(GetApiCredentialTarget(config, _T("token")), apiKey);
+}
+
+static CString UrlEncodeCredential(const CString& value)
+{
+    CStringA input(value);
+    CStringA encoded;
+    const char hex[] = "0123456789ABCDEF";
+    for (int i = 0; i < input.GetLength(); ++i) {
+        unsigned char c = (unsigned char)input[i];
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
+            encoded += (char)c;
+        }
+        else {
+            encoded += '%';
+            encoded += hex[(c >> 4) & 0x0F];
+            encoded += hex[c & 0x0F];
+        }
+    }
+    return CString(encoded);
+}
+
+static bool MakeBasicCredential(const CString& username, const CString& password, CString& encoded)
+{
+    CStringA plain(username + _T(":" ) + password);
+    DWORD required = 0;
+    if (!CryptBinaryToStringA((const BYTE*)plain.GetString(), plain.GetLength(),
+        CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, NULL, &required)) return false;
+    std::vector<char> buffer(required + 1, 0);
+    if (!CryptBinaryToStringA((const BYTE*)plain.GetString(), plain.GetLength(),
+        CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, buffer.data(), &required)) return false;
+    encoded = CString(buffer.data());
+    return true;
+}
+
+static bool ExtractStructuredResponse(const std::string& response,
+    const ApiJsonValue& pattern, CString& result)
+{
+    ApiJsonValue actual;
+    CString parseError;
+    if (!ParseApiJsonUtf8(response, actual, parseError)) return false;
+    std::vector<CString> values;
+    if (!ApiJsonExtractValues(pattern, actual, values) || values.empty()) return false;
+    result.Empty();
+    for (size_t index = 0; index < values.size(); ++index) result += values[index];
+    return !result.IsEmpty();
+}
+
+bool ExecuteApiAction(const ApiConfig& config, const CString& apiKey, const CString& prompt,
+    DWORD timeoutMs, CString& result, CString& error, DWORD* httpStatus)
 {
     result.Empty();
     error.Empty();
-
-    ApiConfig config;
-    if (!LoadApiConfig(config)) {
-        error = _T("API configuration could not be loaded.");
-        return false;
-    }
+    if (httpStatus != NULL) *httpStatus = 0;
     DWORD effectiveTimeoutMs = config.timeoutMs != 0 ? config.timeoutMs : timeoutMs;
 
     TCHAR mockMode[64] = {};
-    DWORD mockLength = ::GetEnvironmentVariable(_T("CSEND_GEMINI_MOCK"), mockMode, _countof(mockMode));
+    DWORD mockLength = ::GetEnvironmentVariable(_T("CSEND_API_MOCK"), mockMode, _countof(mockMode));
     if (mockLength > 0 && mockLength < _countof(mockMode)) {
         CString mode(mockMode, (int)mockLength);
         std::string response;
         if (mode.CompareNoCase(_T("success")) == 0) {
-            response = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"API_TEST_OK\"}]}}]}";
+            ApiJsonValue mockResponse = config.responseJson;
+            ApiJsonReplaceValueMarker(mockResponse, _T("API_TEST_OK"));
+            if (!SerializeApiJsonUtf8(mockResponse, response, FALSE)) {
+                error = _T("API mock response could not be encoded.");
+                return false;
+            }
         }
         else if (mode.CompareNoCase(_T("malformed")) == 0) {
             response = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":}]}]}";
         }
         else if (mode.CompareNoCase(_T("http401")) == 0) {
-            error = _T("Gemini API returned HTTP status 401.");
+            if (httpStatus != NULL) *httpStatus = 401;
+            error = _T("API returned HTTP status 401.");
             return false;
         }
         else if (mode.CompareNoCase(_T("timeout")) == 0) {
-            error = _T("Gemini API request timed out.");
+            error = _T("API request timed out.");
             return false;
         }
         else {
-            error = _T("Unknown Gemini API mock mode.");
+            error = _T("Unknown API mock mode.");
             return false;
         }
-        if (!ExtractResponseText(response, config.responsePath, result) || result.IsEmpty()) {
+        bool extracted = ExtractStructuredResponse(response, config.responseJson, result);
+        if (!extracted || result.IsEmpty()) {
             error = _T("API response did not contain the configured result.");
             return false;
         }
+        if (httpStatus != NULL) *httpStatus = 200;
         return true;
     }
 
-    std::string promptJson;
-    AppendJsonString(promptJson, prompt);
     std::string requestBody;
-    if (!CStringToUtf8(config.requestTemplate, requestBody)) {
-        error = _T("API request template could not be encoded.");
-        return false;
+    if (config.hasRequestBody) {
+        ApiJsonValue requestJson = config.requestJson;
+        ApiJsonReplaceValueMarker(requestJson, prompt);
+        if (!SerializeApiJsonUtf8(requestJson, requestBody, FALSE)) {
+            error = _T("API request JSON could not be encoded.");
+            return false;
+        }
     }
-    const std::string promptToken = "{{prompt_json}}";
-    size_t tokenPosition = requestBody.find(promptToken);
-    if (tokenPosition == std::string::npos) {
-        error = _T("API request template does not contain {{prompt_json}}.");
-        return false;
-    }
-    requestBody.replace(tokenPosition, promptToken.size(), promptJson);
 
-    if (config.authType.CompareNoCase(_T("credential-header")) != 0) {
-        error = _T("The configured API authentication type is not supported yet.");
+    CString credential = apiKey;
+    CString headers;
+    CString query;
+    if (config.authType.CompareNoCase(_T("none")) == 0) {
+        // No authentication header or query is added.
+    }
+    else if (config.authType.CompareNoCase(_T("api-key-header")) == 0 ||
+        config.authType.CompareNoCase(_T("bearer")) == 0) {
+        if (credential.IsEmpty() && !ReadApiCredentialValue(GetApiCredentialTarget(config, _T("token")), credential)) {
+            error = _T("API credential is not configured.");
+            return false;
+        }
+        headers.Format(_T("%s: %s%s\r\n"), config.authHeader.GetString(), config.prefix.GetString(), credential.GetString());
+    }
+    else if (config.authType.CompareNoCase(_T("api-key-query")) == 0) {
+        if (credential.IsEmpty() && !ReadApiCredentialValue(GetApiCredentialTarget(config, _T("token")), credential)) {
+            error = _T("API credential is not configured.");
+            return false;
+        }
+        query.Format(_T("%s=%s"), config.queryName.GetString(), UrlEncodeCredential(config.prefix + credential).GetString());
+    }
+    else if (config.authType.CompareNoCase(_T("basic")) == 0) {
+        CString username;
+        CString password;
+        if (!ReadApiCredentialValue(GetApiCredentialTarget(config, _T("username")), username) ||
+            !ReadApiCredentialValue(GetApiCredentialTarget(config, _T("password")), password)) {
+            error = _T("Basic authentication credentials are not configured.");
+            return false;
+        }
+        CString encoded;
+        if (!MakeBasicCredential(username, password, encoded)) {
+            error = _T("Basic authentication credentials could not be encoded.");
+            return false;
+        }
+        headers.Format(_T("Authorization: Basic %s\r\n"), encoded.GetString());
+    }
+    else {
+        error = _T("The configured API authentication type is not supported.");
         return false;
     }
 
@@ -340,7 +438,10 @@ bool ExecuteApiAction(const CString& apiKey, const CString& prompt,
     if (config.secure) requestFlags |= INTERNET_FLAG_SECURE;
     CStringA methodA(config.method);
     CStringA pathA(config.path);
-    HINTERNET request = HttpOpenRequestA(connection, methodA.GetString(), pathA.GetString(), NULL, NULL,
+    CString requestPath(config.path);
+    if (!query.IsEmpty()) requestPath += _T("?") + query;
+    CStringA requestPathA(requestPath);
+    HINTERNET request = HttpOpenRequestA(connection, methodA.GetString(), requestPathA.GetString(), NULL, NULL,
         NULL, requestFlags, 0);
     if (request == NULL) {
         InternetCloseHandle(connection);
@@ -352,11 +453,12 @@ bool ExecuteApiAction(const CString& apiKey, const CString& prompt,
     InternetSetOption(request, INTERNET_OPTION_SEND_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
     InternetSetOption(request, INTERNET_OPTION_RECEIVE_TIMEOUT, &effectiveTimeoutMs, sizeof(effectiveTimeoutMs));
 
-    CString headers;
-    headers.Format(_T("Content-Type: application/json\r\n%s: %s\r\n"), config.authHeader.GetString(), apiKey.GetString());
+    headers = config.staticHeaders + headers;
+    if (config.hasRequestBody) headers = _T("Content-Type: application/json\r\n") + headers;
     CStringA headerA(headers);
     BOOL sent = HttpSendRequestA(request, headerA.GetString(), -1,
-        (LPVOID)requestBody.data(), (DWORD)requestBody.size());
+        config.hasRequestBody ? (LPVOID)requestBody.data() : NULL,
+        config.hasRequestBody ? (DWORD)requestBody.size() : 0);
     if (!sent) {
         error = _T("HttpSendRequest failed.");
         InternetCloseHandle(request);
@@ -368,6 +470,7 @@ bool ExecuteApiAction(const CString& apiKey, const CString& prompt,
     DWORD status = 0;
     DWORD statusSize = sizeof(status);
     HttpQueryInfo(request, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &status, &statusSize, NULL);
+    if (httpStatus != NULL) *httpStatus = status;
 
     std::string response;
     char buffer[4096];
@@ -384,9 +487,21 @@ bool ExecuteApiAction(const CString& apiKey, const CString& prompt,
         error.Format(_T("API returned HTTP status %lu."), status);
         return false;
     }
-    if (!ExtractResponseText(response, config.responsePath, result) || result.IsEmpty()) {
+    bool extracted = ExtractStructuredResponse(response, config.responseJson, result);
+    if (!extracted || result.IsEmpty()) {
         error = _T("API response did not contain the configured result.");
         return false;
     }
     return true;
+}
+
+bool ExecuteApiAction(const CString& apiKey, const CString& prompt,
+    DWORD timeoutMs, CString& result, CString& error, DWORD* httpStatus)
+{
+    ApiConfig config;
+    if (!LoadApiConfig(config)) {
+        error = _T("API configuration could not be loaded.");
+        return false;
+    }
+    return ExecuteApiAction(config, apiKey, prompt, timeoutMs, result, error, httpStatus);
 }

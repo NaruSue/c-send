@@ -30,6 +30,7 @@ csend.exe /api <operation> [argument]
 | `3` | APIキー未登録 |
 | `4` | クリップボード読み取り失敗 |
 | `5` | レスポンスのクリップボード格納失敗 |
+| `6` | API設定を選択できない（設定なし、または複数設定で選択指定なし） |
 | `10` | API通信失敗 |
 
 ## 例
@@ -44,30 +45,34 @@ if ($LASTEXITCODE -eq 0) { Get-Clipboard }
 
 ## 共通仕様
 
-- API実装はGUIのAPI項目と同じGemini通信処理を使用する。
-- エンドポイント、メソッド、モデル、ポート、TLS、タイムアウトはアプリ配下の `api/gemini.json` から読み込む。
-- リクエスト本文は `requestTemplate` の `{{prompt_json}}` を置換して生成する。
-- レスポンス本文は `responsePath` で指定されたJSONパスの末端値を抽出する。
-- 認証は `authType` で選択する。現在は `credential-header` のみ対応し、Credential Managerの対象名とヘッダー名も設定ファイルから読み込む。
+- API実装はGUIのAPI項目と同じ汎用通信処理を使用する。
+- `CSEND_API_CONFIG` 環境変数にJSONファイルの絶対パスを指定した場合は、その設定と先頭Actionを使用する。これは自動テストや外部自動化で設定を明示するための入口である。
+- `CSEND_API_CONFIG` が未指定の場合は、有効な`api/*.json`が1件だけならその設定と先頭Actionを使用する。0件または複数件の場合は推測で選択せず、終了コード`6`で終了する。
+- CLIはGeminiなど特定サービスの設定ファイル名、エンドポイント、モデル、リクエスト形式を固定しない。
+- 基本URL、相対URL、メソッド、タイムアウト、認証方式は設定JSONから読み込む。
+- `request` JSONがある場合は`{{value}}`へ入力を設定して生成する。`request`を省略したActionはボディなしで実行する。
+- レスポンス本文は `response` JSONの`{{value}}`位置から抽出する。
+- 認証は `none`、`api-key-header`、`api-key-query`、`bearer`、`basic`に対応する。
+- 認証以外の固定ヘッダーは`keyConfig.staticHeader.<ヘッダー名>`から追加する。
 - タイムアウトは120秒、自動リトライは行わない。
 - APIキーをログ、設定ファイル、コマンドライン引数へ出力しない。
 - CLIのレスポンス表示UIは持たず、クリップボードへ格納する。
 - `ping`、`request`、`clipboard` は自動テストの基本操作として維持する。
-- `api/gemini.json` が存在しない、または読み込めない場合は、API項目とAPIモード選択をUIに表示しない。
+- 有効な`api/*.json`が存在しない場合は、API項目とAPIモード選択をUIに表示しない。
 - API設定がない場合でも、通常のテンプレート・定型文・クリップボード機能は利用できる。
 
 ## Mockテスト
 
-GitHub Actionsなど外部APIキーを使わない自動テストでは、環境変数 `CSEND_GEMINI_MOCK` を設定する。
+GitHub Actionsなど外部APIキーを使わない自動テストでは、環境変数 `CSEND_API_MOCK` を設定する。
 
 | 値 | 動作 |
 | --- | --- |
-| `success` | `API_TEST_OK` を含む成功レスポンスを返す |
+| `success` | 設定JSONのresponseパターンへ`API_TEST_OK`を設定した成功レスポンスを返す |
 | `malformed` | JSON形式不正レスポンスを返す |
 | `http401` | 認証エラーを返す |
 | `timeout` | タイムアウトを返す |
 
-MockモードではCredential Managerや外部Gemini APIを使用しない。実APIの疎通確認は手動または限定したワークフローで行う。
+MockモードではCredential Managerや外部APIを使用しない。実APIの疎通確認は手動または限定したワークフローで行う。
 
 ## API設定例
 
@@ -75,16 +80,49 @@ MockモードではCredential Managerや外部Gemini APIを使用しない。実
 
 ```json
 {
-  "endpoint": "generativelanguage.googleapis.com",
-  "path": "/v1beta/models/{model}:generateContent",
-  "method": "POST",
-  "model": "gemini-3.5-flash-lite",
+  "id": "gemini",
+  "name": "Gemini",
+  "baseUrl": "https://generativelanguage.googleapis.com",
   "timeoutMs": 120000,
-  "authType": "credential-header",
-  "credentialTarget": "C-Send/GeminiAPIKey",
-  "authHeader": "x-goog-api-key",
-  "requestTemplate": "{\"contents\":[{\"parts\":[{\"text\":{{prompt_json}}}]}]}",
-  "responsePath": "candidates[].content.parts[].text"
+  "authType": "api-key-header",
+  "credentialId": "gemini-v1beta",
+  "keyConfig": {
+    "headerName": "x-goog-api-key",
+    "prefix": ""
+  },
+  "actions": [
+    {
+      "id": "generateContent",
+      "name": "Generate content",
+      "url": "/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      "method": "POST",
+      "description": "入力文章から応答を生成する",
+      "request": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "{{value}}"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "{{value}}"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
 }
 ```
 

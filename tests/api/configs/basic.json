@@ -1,0 +1,22 @@
+{
+  "id": "mock-basic-api",
+  "name": "Mock basic-auth API",
+  "baseUrl": "https://mock.invalid",
+  "timeoutMs": 120000,
+  "authType": "basic",
+  "credentialId": "mock-basic-api",
+  "keyConfig": {},
+  "actions": [
+    {
+      "id": "mock",
+      "name": "Mock",
+      "url": "/v1/mock",
+      "method": "POST",
+      "description": "Basic authentication mock",
+      "request": { "prompt": "{{value}}" },
+      "response": {
+        "candidates": [{ "content": { "parts": [{ "text": "{{value}}" }] } }]
+      }
+    }
+  ]
+}

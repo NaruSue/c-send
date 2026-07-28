@@ -18,6 +18,41 @@ static bool IsHttpUrl(const CString& path)
 		path.Left(8).CompareNoCase(_T("https://")) == 0;
 }
 
+static bool CategoryFileExists(const CString& path)
+{
+	if (PathFileExists(path)) {
+		return true;
+	}
+	if (!PathIsRelative(path)) {
+		return false;
+	}
+
+	TCHAR modulePath[MAX_PATH] = {};
+	if (GetModuleFileName(NULL, modulePath, _countof(modulePath)) == 0) {
+		return false;
+	}
+	CString fullPath(modulePath);
+	int separator = fullPath.ReverseFind(_T('\\'));
+	if (separator >= 0) {
+		fullPath = fullPath.Left(separator + 1);
+	}
+	fullPath += path;
+	return PathFileExists(fullPath) != FALSE;
+}
+
+static bool CompleteNewCategoryPath(CString& path)
+{
+	if (IsHttpUrl(path) || CategoryFileExists(path)) {
+		return false;
+	}
+	LPCTSTR extension = PathFindExtension(path);
+	if (extension != NULL && extension[0] != _T('\0')) {
+		return false;
+	}
+	path += _T(".json");
+	return true;
+}
+
 static bool ValidateUrlSource(const CString& url)
 {
 	HINTERNET hSession = InternetOpen(_T("C-Send"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
@@ -390,6 +425,10 @@ void categoryDlg::OnBnClickedButtonCatSave()
 	if (m_strName.IsEmpty() || m_strPath.IsEmpty()) {
 		// メッセージとか入れるならここで
 		return;
+	}
+
+	if (CompleteNewCategoryPath(m_strPath)) {
+		UpdateData(FALSE);
 	}
 
 	BOOL listCheck = TRUE;

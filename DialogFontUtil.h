@@ -1,6 +1,7 @@
 #pragma once
 
 #include "afxwin.h"
+#include <vector>
 
 inline CString GetSettingIniPathFromExe()
 {
@@ -118,4 +119,68 @@ inline void ApplyScaledLayout(CWnd* pWnd, double sx, double sy, const UINT* ids,
 		ScaleRect(rc, sx, sy);
 		pChild->MoveWindow(&rc);
 	}
+}
+
+inline void ApplyScaledLayoutToAllChildren(CWnd* pWnd, double sx, double sy)
+{
+	if (pWnd == NULL || !::IsWindow(pWnd->m_hWnd)) {
+		return;
+	}
+
+	struct ChildLayout
+	{
+		HWND window;
+		CRect rect;
+	};
+	std::vector<ChildLayout> children;
+	for (HWND child = ::GetWindow(pWnd->m_hWnd, GW_CHILD);
+		child != NULL; child = ::GetWindow(child, GW_HWNDNEXT)) {
+		CRect rect;
+		::GetWindowRect(child, &rect);
+		pWnd->ScreenToClient(&rect);
+		ChildLayout layout = { child, rect };
+		children.push_back(layout);
+	}
+
+	CRect windowRect;
+	CRect clientRect;
+	pWnd->GetWindowRect(&windowRect);
+	pWnd->GetClientRect(&clientRect);
+	const int frameWidth = windowRect.Width() - clientRect.Width();
+	const int frameHeight = windowRect.Height() - clientRect.Height();
+	pWnd->SetWindowPos(NULL, 0, 0,
+		ScaleInt(clientRect.Width(), sx) + frameWidth,
+		ScaleInt(clientRect.Height(), sy) + frameHeight,
+		SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+	for (size_t index = 0; index < children.size(); ++index) {
+		CRect rect = children[index].rect;
+		ScaleRect(rect, sx, sy);
+		::MoveWindow(children[index].window, rect.left, rect.top,
+			rect.Width(), rect.Height(), FALSE);
+	}
+}
+
+inline double ApplyConfiguredDialogFontAndLayout(
+	CWnd* pWnd, CFont& font, double baseFontSize = 18.0)
+{
+	if (pWnd == NULL || !::IsWindow(pWnd->m_hWnd)) {
+		return 1.0;
+	}
+
+	CString fontName;
+	int fontSize = 0;
+	LoadFontSetting(CString(), fontName, fontSize);
+	if (CreateFontForSetting(font, fontName, fontSize)) {
+		pWnd->SetFont(&font);
+		pWnd->SendMessageToDescendants(WM_SETFONT,
+			(WPARAM)font.GetSafeHandle(), TRUE, TRUE);
+	}
+
+	double scale = baseFontSize > 0.0 ? fontSize / baseFontSize : 1.0;
+	if (scale < 1.0) {
+		scale = 1.0;
+	}
+	ApplyScaledLayoutToAllChildren(pWnd, scale, scale);
+	return scale;
 }

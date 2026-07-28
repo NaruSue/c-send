@@ -1,0 +1,25 @@
+{
+  "id": "mock-header-api",
+  "name": "Mock header-key API",
+  "baseUrl": "https://mock.invalid",
+  "timeoutMs": 120000,
+  "authType": "api-key-header",
+  "credentialId": "mock-header-api",
+  "keyConfig": {
+    "headerName": "X-API-Key",
+    "prefix": "Token "
+  },
+  "actions": [
+    {
+      "id": "mock",
+      "name": "Mock",
+      "url": "/v1/mock",
+      "method": "POST",
+      "description": "Header key mock",
+      "request": { "prompt": "{{value}}" },
+      "response": {
+        "candidates": [{ "content": { "parts": [{ "text": "{{value}}" }] } }]
+      }
+    }
+  ]
+}

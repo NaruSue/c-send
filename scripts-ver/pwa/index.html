@@ -1027,6 +1027,12 @@ button:active {
       return clipboard;
     };
     const command = async (raw) => {
+      const fallbackMatch = raw.trim().match(/^clipboard\|([\s\S]*)$/);
+      if (fallbackMatch) {
+        const text = await getClipboard();
+        const fallback = fallbackMatch[1].trim();
+        return text || fallback;
+      }
       const match = raw.trim().match(/^([a-z_]+)(?:\((.*)\))?$/);
       if (!match) throw new Error("テンプレートのコマンドが正しくありません。");
       const name = match[1];

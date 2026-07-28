@@ -13,6 +13,8 @@
 #include "IniTextUtil.h"
 #include "TemplateEngine.h"
 #include "ApiClient.h"
+#include "ApiCatalog.h"
+#include "ApiListDlg.h"
 #include <wininet.h>
 
 #pragma comment(lib, "wininet.lib")
@@ -24,6 +26,8 @@ struct ApiWorkerContext
     int itemIndex;
     CString initialClipboard;
     CString prompt;
+    CString apiId;
+    CString actionId;
     DWORD timeoutMs;
 };
 
@@ -34,7 +38,18 @@ struct ApiCompletion
     BOOL success;
     CString result;
     CString error;
+    DWORD httpStatus;
 };
+
+static CString MakeApiExecutionTimestamp()
+{
+    SYSTEMTIME now = {};
+    ::GetLocalTime(&now);
+    CString timestamp;
+    timestamp.Format(_T("%04u-%02u-%02u %02u:%02u:%02u"),
+        now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
+    return timestamp;
+}
 
 static UINT ApiWorkerProc(LPVOID parameter)
 {
@@ -43,14 +58,24 @@ static UINT ApiWorkerProc(LPVOID parameter)
     completion->itemIndex = context->itemIndex;
     completion->initialClipboard = context->initialClipboard;
     completion->success = FALSE;
+    completion->httpStatus = 0;
 
     CString apiKey;
-    if (!ReadApiCredential(apiKey)) {
-        completion->error = _T("Gemini API key is not configured in Windows Credential Manager.");
+    ApiConfig config;
+    if (!LoadApiConfigSelection(context->apiId, context->actionId, config)) {
+        completion->error = _T("API configuration could not be loaded.");
+    }
+    else if (!ValidateApiCredentials(config, completion->error)) {
+        // Credentials may have been removed after the main-thread preflight.
     }
     else {
-        completion->success = ExecuteApiAction(apiKey, context->prompt,
-            context->timeoutMs, completion->result, completion->error) ? TRUE : FALSE;
+        if (ApiRequiresCredential(config) &&
+            config.authType.CompareNoCase(_T("basic")) != 0) {
+            ReadApiCredentialValue(GetApiCredentialTarget(config, _T("token")), apiKey);
+        }
+        completion->success = ExecuteApiAction(config, apiKey, context->prompt,
+            context->timeoutMs, completion->result, completion->error,
+            &completion->httpStatus) ? TRUE : FALSE;
     }
 
     if (!::PostMessage(context->window, WM_USER_API_COMPLETED, 0, (LPARAM)completion)) {
@@ -211,20 +236,6 @@ static CString MakeItemLabel(const ItemData& item)
 		label = _T("[A] ");
 	}
 	label += item.name;
-	if (item.mode == _T("api")) {
-		if (item.apiState == ItemData::API_STATE_RUNNING) {
-			label += _T("  [Wait]");
-		}
-		else if (item.apiState == ItemData::API_STATE_COMPLETED) {
-			label += _T("  [Copy]");
-		}
-		else if (item.apiState == ItemData::API_STATE_FAILED) {
-			label += _T("  [Run]");
-		}
-		else {
-			label += _T("  [Run]");
-		}
-	}
 	return label;
 }
 
@@ -585,6 +596,9 @@ BEGIN_MESSAGE_MAP(CCsendDlg, CDialog)
 	ON_COMMAND_RANGE(ID_TRAY_ITEM_BASE, ID_TRAY_ITEM_MAX, OnTrayItemSelect)
  ON_MESSAGE(WM_USER_API_COMPLETED, &CCsendDlg::OnApiCompleted)
  ON_MESSAGE(WM_USER_API_RUN_ITEM, &CCsendDlg::OnApiRunItem)
+ ON_MESSAGE(WM_USER_API_GET_STATE, &CCsendDlg::OnApiGetState)
+ ON_MESSAGE(WM_USER_API_HAS_RESULT, &CCsendDlg::OnApiHasResult)
+ ON_MESSAGE(WM_USER_API_COPY_RESULT, &CCsendDlg::OnApiCopyResult)
  ON_CBN_SELCHANGE(IDC_COMBO_CATEGORY, &CCsendDlg::OnCbnSelchangeComboCategory)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
@@ -619,6 +633,12 @@ BOOL CCsendDlg::OnInitDialog()
 
 	CMenu* pSysMenu = GetSystemMenu(FALSE);	// システムメニューを取得します
 	CString strMenu;
+	TCHAR menuModulePath[MAX_PATH] = {};
+	::GetModuleFileName(NULL, menuModulePath, _countof(menuModulePath));
+	CString menuDirectory(menuModulePath);
+	int menuSeparator = menuDirectory.ReverseFind(_T('\\'));
+	if (menuSeparator >= 0) menuDirectory = menuDirectory.Left(menuSeparator);
+	BOOL apiDirectoryAvailable = PathIsDirectory(menuDirectory + _T("\\api"));
 // Make-->
 	pSysMenu->AppendMenu(MF_SEPARATOR);	//セパレータ
 
@@ -635,6 +655,11 @@ BOOL CCsendDlg::OnInitDialog()
 		pSysMenu->AppendMenu(MF_STRING, IDS_CATEGORY, strMenu);
 
 	pSysMenu->AppendMenu(MF_SEPARATOR);	// セパレータ
+
+	if (apiDirectoryAvailable) {
+		pSysMenu->AppendMenu(MF_STRING, ID_API_LIST, _T("API"));
+		pSysMenu->AppendMenu(MF_SEPARATOR);
+	}
 
 	strMenu.LoadString(IDS_ABOUTBOX);		// AboutBox
 		pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strMenu);
@@ -654,8 +679,8 @@ BOOL CCsendDlg::OnInitDialog()
 	GetModuleFileName(NULL, szPath, MAX_PATH); // C:\MyApp\MyApp.exe
 	PathRemoveFileSpec(szPath);                 // C:\MyApp
 	m_appPath = szPath;
-	ApiConfig apiConfig;
-	m_apiAvailable = LoadApiConfig(apiConfig) ? TRUE : FALSE;
+	std::vector<ApiDefinitionSummary> apiDefinitions;
+	m_apiAvailable = LoadApiDefinitions(apiDefinitions) ? TRUE : FALSE;
 	m_iniPath.Format(_T("%s\\setting.ini"), szPath);
 
     EnsureDefaultIniMessages(m_iniPath);
@@ -730,6 +755,15 @@ BOOL CCsendDlg::OnInitDialog()
 	return TRUE;  // TRUE を返すとコントロールに設定したフォーカスは失われません。
 }
 
+void CCsendDlg::SetApiExecutionMenusEnabled(BOOL enabled)
+{
+	CMenu* sysMenu = GetSystemMenu(FALSE);
+	if (sysMenu == NULL) return;
+	const UINT state = MF_BYCOMMAND | (enabled ? MF_ENABLED : MF_GRAYED);
+	sysMenu->EnableMenuItem(ID_API_LIST, state);
+	sysMenu->EnableMenuItem(IDS_CATEGORY, state);
+}
+
 // ここではシステムコマンドに対応する為の処理を行います
 void CCsendDlg::OnSysCommand(UINT nID, LPARAM lParam)
 {
@@ -750,7 +784,16 @@ void CCsendDlg::OnSysCommand(UINT nID, LPARAM lParam)
 		DeleteString();					// 削除関数を呼び出します
     }
 	else if (nID == IDS_CATEGORY) {
+		if (m_apiBusy) return;
 		CategoryDlg();
+    }
+	else if (nID == ID_API_LIST) {
+		if (m_apiBusy) return;
+		CApiListDlg dialog(this);
+		dialog.DoModal();
+		std::vector<ApiDefinitionSummary> apiDefinitions;
+		m_apiAvailable = LoadApiDefinitions(apiDefinitions) ? TRUE : FALSE;
+		UpdateList();
     }
 	else
 // <--Make
@@ -908,11 +951,20 @@ void CCsendDlg::OnDblclkClist()
 {
 	// TODO: この位置にコントロール通知ハンドラ用のコードを追加してください
 
+	CPoint cursor;
+	::GetCursorPos(&cursor);
+	m_CList.ScreenToClient(&cursor);
+	CRect listClient;
+	m_CList.GetClientRect(&listClient);
+	if (cursor.x >= listClient.right - 96) return;
+
 	int i = GetSelectedDataIndex();
 	if( i < 0 || i >= m_dataList.GetCount() ){
         return;
     }
 	if (m_dataList.Datas(i).mode == _T("api")) {
+		if (m_dataList.Datas(i).apiState == ItemData::API_STATE_FAILED &&
+			!ConfirmApiRetry(i)) return;
 		ExecuteApiItem(i);
 		return;
 	}
@@ -922,6 +974,7 @@ void CCsendDlg::OnDblclkClist()
 
 	cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value );
 	cInput.SetMode(m_dataList.Datas(i).mode);
+	cInput.SetApiSelection(m_dataList.Datas(i).apiId, m_dataList.Datas(i).actionId);
 	cInput.SetTemplateEnabled(m_currentDataFormat == DATA_FILE_FORMAT_JSON);
 	cInput.SetApiEnabled(m_apiAvailable);
 	cInput.SetViewOnly( TRUE );
@@ -1201,14 +1254,16 @@ void CCsendDlg::ChangeMessage()
 	else{
 		cInput.SetInputText( m_dataList.Datas(i).name, m_dataList.Datas(i).value);	// メッセージ編集用のダイアログに現在選択されている文字列を設定します
 		cInput.SetMode(m_dataList.Datas(i).mode);
+		cInput.SetApiSelection(m_dataList.Datas(i).apiId, m_dataList.Datas(i).actionId);
 		InputWindowName.LoadString( IDS_CHANGE );	// キャプションは「変更」を選びます
     }
 	cInput.SetWindowName( InputWindowName );	// キャプションを設定します
 
 	if (cInput.DoModal() == IDOK) {
-		CString title, text, mode;
+		CString title, text, mode, apiId, actionId;
 		cInput.GetInputText(title, text);
 		cInput.GetMode(mode);
+		cInput.GetApiSelection(apiId, actionId);
 
 		// 1. メモリ（m_dataList）を更新
 		if (flag) {
@@ -1217,12 +1272,17 @@ void CCsendDlg::ChangeMessage()
 			    AfxMessageBox(GetIniMessage(_T(""), _T("data_add_limit"), _T("データは100件までです。")));
 			    return;
 		    }
+			int added = m_dataList.GetCount() - 1;
+			m_dataList.Datas(added).apiId = apiId;
+			m_dataList.Datas(added).actionId = actionId;
 	    }
 		else {
 			// 既存編集
 			m_dataList.Datas(i).name = title;
 			m_dataList.Datas(i).value = text;
 			m_dataList.Datas(i).mode = mode;
+			m_dataList.Datas(i).apiId = apiId;
+			m_dataList.Datas(i).actionId = actionId;
 	    }
 
 		// 2. 確定したメモリの内容をファイルへ物理保存
@@ -1284,22 +1344,8 @@ void CCsendDlg::ExecuteApiItem(int index)
     if (m_apiBusy || index < 0 || index >= m_dataList.GetCount()) return;
     if (m_dataList.Datas(index).mode != _T("api")) return;
 
-    CString apiKey;
-    if (!ReadApiCredential(apiKey)) {
-        CString keyTitle = _T("Gemini API Key");
-        CString enteredKey;
-        CInputBox keyDialog;
-        keyDialog.SetInputText(keyTitle, enteredKey);
-        keyDialog.SetWindowName(_T("Gemini API Key"));
-        keyDialog.SetTemplateEnabled(FALSE);
-        keyDialog.SetApiEnabled(FALSE);
-        if (keyDialog.DoModal() != IDOK) return;
-        keyDialog.GetInputText(keyTitle, enteredKey);
-        if (!WriteApiCredential(enteredKey)) {
-            AfxMessageBox(_T("Gemini API key could not be saved to Windows Credential Manager."), MB_OK | MB_ICONERROR);
-            return;
-        }
-    }
+    ApiConfig apiConfig;
+    if (!PrepareApiItem(index, apiConfig, TRUE)) return;
 
     CString clipboard;
     if (!ReadClipBoard(clipboard)) {
@@ -1307,8 +1353,11 @@ void CCsendDlg::ExecuteApiItem(int index)
         return;
     }
 
-    CString prompt = m_dataList.Datas(index).value;
-    prompt.Replace(_T("{{clipboard}}"), clipboard);
+    CString prompt;
+    if (!ExpandClipboardTags(m_dataList.Datas(index).value, clipboard, prompt)) {
+        AfxMessageBox(_T("テンプレートの形式が正しくありません。"), MB_OK | MB_ICONERROR);
+        return;
+    }
     prompt.Replace(_T("{{input}}"), clipboard);
 
     ApiWorkerContext* context = new ApiWorkerContext();
@@ -1316,16 +1365,19 @@ void CCsendDlg::ExecuteApiItem(int index)
     context->itemIndex = index;
     context->initialClipboard = clipboard;
     context->prompt = prompt;
+    context->apiId = m_dataList.Datas(index).apiId;
+    context->actionId = m_dataList.Datas(index).actionId;
     context->timeoutMs = m_apiTimeoutMs;
 
     m_apiBusy = TRUE;
     m_apiItemIndex = index;
     m_dataList.Datas(index).apiState = ItemData::API_STATE_RUNNING;
-    m_dataList.Datas(index).apiResult.Empty();
     m_dataList.Datas(index).apiError.Empty();
-    m_CList.EnableWindow(FALSE);
+    m_dataList.Datas(index).apiExecutedAt.Empty();
+    m_dataList.Datas(index).apiHttpStatus = 0;
     m_CCombo.EnableWindow(FALSE);
-    SetWindowText(_T("C-Send - Gemini API running..."));
+    SetApiExecutionMenusEnabled(FALSE);
+    SetWindowText(_T("C-Send - API running..."));
     m_CList.Invalidate();
 
     if (AfxBeginThread(ApiWorkerProc, context) == NULL) {
@@ -1334,25 +1386,106 @@ void CCsendDlg::ExecuteApiItem(int index)
         m_apiItemIndex = -1;
         m_dataList.Datas(index).apiState = ItemData::API_STATE_FAILED;
         m_dataList.Datas(index).apiError = _T("API worker could not be started.");
-        m_CList.EnableWindow(TRUE);
         m_CCombo.EnableWindow(TRUE);
+        SetApiExecutionMenusEnabled(TRUE);
         AfxMessageBox(m_dataList.Datas(index).apiError, MB_OK | MB_ICONERROR);
     }
 }
 
+BOOL CCsendDlg::PrepareApiItem(int index, ApiConfig& config, BOOL showMessage)
+{
+    if (index < 0 || index >= m_dataList.GetCount() ||
+        m_dataList.Datas(index).mode != _T("api")) return FALSE;
+
+    CString error;
+    if (!LoadApiConfigSelection(m_dataList.Datas(index).apiId,
+        m_dataList.Datas(index).actionId, config)) {
+        error = _T("API設定またはActionを読み込めません。");
+    }
+    else {
+        ValidateApiCredentials(config, error);
+    }
+
+    ItemData& item = m_dataList.Datas(index);
+    if (!error.IsEmpty()) {
+        item.apiState = ItemData::API_STATE_UNAVAILABLE;
+        item.apiError = error;
+        if (showMessage) ShowApiUnavailable(index);
+        m_CList.Invalidate();
+        return FALSE;
+    }
+    if (item.apiState == ItemData::API_STATE_UNAVAILABLE) {
+        item.apiState = ItemData::API_STATE_IDLE;
+        item.apiError.Empty();
+    }
+    return TRUE;
+}
+
+void CCsendDlg::ShowApiUnavailable(int index)
+{
+    if (index < 0 || index >= m_dataList.GetCount()) return;
+    CString message = m_dataList.Datas(index).apiError;
+    if (message.IsEmpty()) message = _T("このAPIは現在実行できません。");
+    message += _T("\n\nシステムメニューの「API」から認証情報と設定内容を確認してください。");
+    AfxMessageBox(message, MB_OK | MB_ICONWARNING);
+}
+
+LRESULT CCsendDlg::OnApiGetState(WPARAM wParam, LPARAM)
+{
+    int listIndex = (int)wParam;
+    int index = (listIndex >= 0 && listIndex < m_CList.GetCount()) ?
+        (int)m_CList.GetItemData(listIndex) : -1;
+    if (index < 0 || index >= m_dataList.GetCount() ||
+        m_dataList.Datas(index).mode != _T("api")) return -1;
+    return m_dataList.Datas(index).apiState;
+}
+
+LRESULT CCsendDlg::OnApiHasResult(WPARAM wParam, LPARAM)
+{
+    int listIndex = (int)wParam;
+    int index = (listIndex >= 0 && listIndex < m_CList.GetCount()) ?
+        (int)m_CList.GetItemData(listIndex) : -1;
+    if (index < 0 || index >= m_dataList.GetCount() ||
+        m_dataList.Datas(index).mode != _T("api")) return 0;
+    return !m_dataList.Datas(index).apiResult.IsEmpty();
+}
+
+LRESULT CCsendDlg::OnApiCopyResult(WPARAM wParam, LPARAM)
+{
+    int listIndex = (int)wParam;
+    int index = (listIndex >= 0 && listIndex < m_CList.GetCount()) ?
+        (int)m_CList.GetItemData(listIndex) : -1;
+    if (index < 0 || index >= m_dataList.GetCount() ||
+        m_dataList.Datas(index).mode != _T("api") ||
+        m_dataList.Datas(index).apiResult.IsEmpty() ||
+        m_dataList.Datas(index).apiState == ItemData::API_STATE_RUNNING) return 0;
+    CString result = m_dataList.Datas(index).apiResult;
+    if (SendClipBoard(result)) ShowCopyFeedback(m_dataList.Datas(index).name);
+    return 1;
+}
+
+BOOL CCsendDlg::ConfirmApiRetry(int index)
+{
+    if (index < 0 || index >= m_dataList.GetCount()) return FALSE;
+    CString message = _T("APIの実行に失敗しました。");
+    CString error = m_dataList.Datas(index).apiError;
+    if (!error.IsEmpty()) {
+        if (error.GetLength() > 300) error = error.Left(297) + _T("...");
+        message += _T("\n\n") + error;
+    }
+    message += _T("\n\n再実行しますか？");
+    return AfxMessageBox(message, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES;
+}
 
 LRESULT CCsendDlg::OnApiRunItem(WPARAM wParam, LPARAM)
 {
     int listIndex = (int)wParam;
     int index = (listIndex >= 0 && listIndex < m_CList.GetCount()) ? (int)m_CList.GetItemData(listIndex) : -1;
     if (index < 0 || index >= m_dataList.GetCount() || m_dataList.Datas(index).mode != _T("api")) return 0;
-    if (m_dataList.Datas(index).apiState == ItemData::API_STATE_COMPLETED && !m_dataList.Datas(index).apiResult.IsEmpty()) {
-        CString result = m_dataList.Datas(index).apiResult;
-        if (SendClipBoard(result)) ShowCopyFeedback(m_dataList.Datas(index).name);
-    }
-    else {
-        ExecuteApiItem(index);
-    }
+    if (m_dataList.Datas(index).apiState == ItemData::API_STATE_RUNNING) return 1;
+    if (m_dataList.Datas(index).apiState == ItemData::API_STATE_FAILED &&
+        !ConfirmApiRetry(index)) return 1;
+    ExecuteApiItem(index);
     return 1;
 }
 
@@ -1369,13 +1502,15 @@ LRESULT CCsendDlg::OnApiCompleted(WPARAM, LPARAM lParam)
 
     ItemData& item = m_dataList.Datas(index);
     item.apiState = completion->success ? ItemData::API_STATE_COMPLETED : ItemData::API_STATE_FAILED;
-    item.apiResult = completion->result;
+    if (completion->success) item.apiResult = completion->result;
     item.apiError = completion->error;
+    item.apiExecutedAt = MakeApiExecutionTimestamp();
+    item.apiHttpStatus = completion->httpStatus;
 
     m_apiBusy = FALSE;
     m_apiItemIndex = -1;
-    m_CList.EnableWindow(TRUE);
     m_CCombo.EnableWindow(TRUE);
+    SetApiExecutionMenusEnabled(TRUE);
 
     if (completion->success) {
         CString currentClipboard;
@@ -1389,7 +1524,7 @@ LRESULT CCsendDlg::OnApiCompleted(WPARAM, LPARAM lParam)
     }
     else {
         CString message = item.apiError;
-        if (message.IsEmpty()) message = _T("Gemini API request failed.");
+        if (message.IsEmpty()) message = _T("API request failed.");
         AfxMessageBox(message, MB_OK | MB_ICONERROR);
         SetWindowText(MakeWindowTitle(item.name, m_bCurrentCategoryIsReadOnly));
     }
@@ -1412,6 +1547,8 @@ void CCsendDlg::ActivateListItem(int index)
         return;
     }
     if (m_dataList.Datas(index).mode == _T("api")) {
+        if (m_dataList.Datas(index).apiState == ItemData::API_STATE_FAILED &&
+            !ConfirmApiRetry(index)) return;
         ExecuteApiItem(index);
         return;
     }
@@ -1681,6 +1818,10 @@ void CCsendDlg::UpdateList() {
 
 	for (int i = 0; i < m_dataList.GetCount(); i++) {
 		if (!m_apiAvailable && m_dataList.Datas(i).mode == _T("api")) continue;
+		if (m_dataList.Datas(i).mode == _T("api")) {
+			ApiConfig config;
+			PrepareApiItem(i, config, FALSE);
+		}
 		int listIndex = m_CList.AddString(MakeItemLabel(m_dataList.Datas(i)));
 		if (listIndex != LB_ERR) m_CList.SetItemData(listIndex, (DWORD_PTR)i);
     }

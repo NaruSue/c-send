@@ -1,0 +1,22 @@
+{
+  "id": "mock-bodyless-static-headers",
+  "name": "Mock bodyless request with static headers",
+  "baseUrl": "https://example.invalid",
+  "timeoutMs": 120000,
+  "authType": "none",
+  "keyConfig": {
+    "staticHeader.Accept": "application/json",
+    "staticHeader.X-Test-Version": "2026-07-28"
+  },
+  "actions": [
+    {
+      "id": "get-result",
+      "name": "Get result",
+      "url": "/result",
+      "method": "GET",
+      "response": {
+        "text": "{{value}}"
+      }
+    }
+  ]
+}

@@ -8,13 +8,21 @@
       "name": "クリップボードを要約",
       "value": "次の文章を日本語で簡潔に要約してください。\n\n{{clipboard}}",
       "type": 0,
-      "mode": "api"
+      "mode": "api",
+      "options": {
+        "api": "gemini",
+        "action": "generateContent"
+      }
     },
     {
       "name": "文章を添削",
       "value": "次の文章を厳しく添削してください。改善案も示してください。\n\n{{clipboard}}",
       "type": 0,
-      "mode": "api"
+      "mode": "api",
+      "options": {
+        "api": "gemini",
+        "action": "generateContent"
+      }
     }
   ]
 }

@@ -1,15 +1,45 @@
 {
+  "id": "gemini",
   "name": "Gemini",
-  "endpoint": "generativelanguage.googleapis.com",
-  "port": 443,
-  "secure": true,
-  "path": "/v1beta/models/{model}:generateContent",
-  "method": "POST",
-  "model": "gemini-3.5-flash-lite",
+  "baseUrl": "https://generativelanguage.googleapis.com",
   "timeoutMs": 120000,
-  "authType": "credential-header",
-  "credentialTarget": "C-Send/GeminiAPIKey",
-  "authHeader": "x-goog-api-key",
-  "requestTemplate": "{\"contents\":[{\"parts\":[{\"text\":{{prompt_json}}}]}]}",
-  "responsePath": "candidates[].content.parts[].text"
+  "authType": "api-key-header",
+  "credentialId": "gemini-v1beta",
+  "keyConfig": {
+    "headerName": "x-goog-api-key",
+    "prefix": ""
+  },
+  "actions": [
+    {
+      "id": "generateContent",
+      "name": "Generate content",
+      "url": "/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      "method": "POST",
+      "description": "入力文章から応答を生成する",
+      "request": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "{{value}}"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "{{value}}"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
 }

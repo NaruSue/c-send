@@ -56,6 +56,41 @@ static bool CStringToUtf8(const CString& input, std::string& output)
     return WideCharToMultiByte(CP_UTF8, 0, wideText, wideLength, &output[0], utf8Length, NULL, NULL) > 0;
 }
 
+static bool ReadRawJsonStringProperty(const std::string& text, const char* key, CString& output)
+{
+    std::string marker = "\"" + std::string(key) + "\"";
+    size_t position = text.find(marker);
+    if (position == std::string::npos) return false;
+    position = text.find(':', position + marker.size());
+    if (position == std::string::npos) return false;
+    position = text.find('"', position + 1);
+    if (position == std::string::npos) return false;
+    ++position;
+    std::string value;
+    bool escaped = false;
+    for (; position < text.size(); ++position) {
+        char c = text[position];
+        if (escaped) {
+            if (c == '"' || c == '\\' || c == '/') value += c;
+            else if (c == 'n') value += '\n';
+            else if (c == 'r') value += '\r';
+            else if (c == 't') value += '\t';
+            else return false;
+            escaped = false;
+        }
+        else if (c == '\\') escaped = true;
+        else if (c == '"') return Utf8ToCString(value, output);
+        else value += c;
+    }
+    return false;
+}
+
+static bool IsOptionsProperty(const std::string& property)
+{
+    size_t position = property.find_first_not_of(" \t\r\n");
+    return position != std::string::npos && property.compare(position, 9, "\"options\"") == 0;
+}
+
 static bool IsIso8601DateTime(const std::string& value)
 {
     if (value.size() < 19) return false;
@@ -385,7 +420,10 @@ private:
             else if (key == "options") {
                 SkipSpace();
                 if (m_pos >= m_text.size() || m_text[m_pos] != '{' || !SkipValue()) return false;
-                item.jsonExtraProperties.push_back(m_text.substr(propertyStart, m_pos - propertyStart));
+                std::string property = m_text.substr(propertyStart, m_pos - propertyStart);
+                ReadRawJsonStringProperty(property, "api", item.apiId);
+                ReadRawJsonStringProperty(property, "action", item.actionId);
+                item.jsonExtraProperties.push_back(property);
             }
             else if (key == "tags") {
                 if (!ParseStringArray()) return false;
@@ -534,7 +572,15 @@ void SaveJsonDataFile(const CString& dataPath, const CArray<ItemData, ItemData&>
         text += typeBuffer;
         text += ",\n      \"mode\": ";
         AppendJsonString(text, item.mode.IsEmpty() ? CString(_T("plain")) : item.mode);
+        if (item.mode == _T("api") && !item.apiId.IsEmpty() && !item.actionId.IsEmpty()) {
+            text += ",\n      \"options\": {\n        \"api\": ";
+            AppendJsonString(text, item.apiId);
+            text += ",\n        \"action\": ";
+            AppendJsonString(text, item.actionId);
+            text += "\n      }";
+        }
         for (size_t extra = 0; extra < item.jsonExtraProperties.size(); ++extra) {
+            if (IsOptionsProperty(item.jsonExtraProperties[extra])) continue;
             text += ",\n      ";
             text += item.jsonExtraProperties[extra];
         }

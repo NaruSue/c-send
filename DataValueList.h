@@ -13,18 +13,23 @@ struct ItemData {
         API_STATE_IDLE = 0,
         API_STATE_RUNNING = 1,
         API_STATE_COMPLETED = 2,
-        API_STATE_FAILED = 3
+        API_STATE_FAILED = 3,
+        API_STATE_UNAVAILABLE = 4
     };
 
     CString name;
     CString value;
     CString mode;
+    CString apiId;
+    CString actionId;
     int type;
     std::vector<std::string> jsonExtraProperties;
     int apiState;
     CString apiResult;
     CString apiError;
-    ItemData() : mode(_T("plain")), type(0), apiState(API_STATE_IDLE) {}
+    CString apiExecutedAt;
+    DWORD apiHttpStatus;
+    ItemData() : mode(_T("plain")), type(0), apiState(API_STATE_IDLE), apiHttpStatus(0) {}
 };
 
 struct JsonFileMetadata {

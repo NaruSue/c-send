@@ -30,6 +30,7 @@ public:
 	void BuildTrayMenu(CMenu& menu);
 	void BuildListContextMenu(CMenu& menu);
 	void ExecuteApiItem(int index);
+	BOOL PrepareApiItem(int index, ApiConfig& config, BOOL showMessage);
 	int GetSelectedDataIndex() const;
 
 // Dialog Data
@@ -92,6 +93,9 @@ protected:
 	afx_msg void OnTrayItemSelect(UINT nID);
 	afx_msg LRESULT OnApiCompleted(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnApiRunItem(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnApiGetState(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnApiHasResult(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnApiCopyResult(WPARAM wParam, LPARAM lParam);
  afx_msg void OnCbnSelchangeComboCategory();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
@@ -112,6 +116,9 @@ private:
 	BOOL m_bStatusErrorMode = FALSE;
 	BOOL m_apiBusy = FALSE;
 	BOOL m_apiAvailable = FALSE;
+	BOOL ConfirmApiRetry(int index);
+	void ShowApiUnavailable(int index);
+	void SetApiExecutionMenusEnabled(BOOL enabled);
 	int m_apiItemIndex = -1;
 	DWORD m_apiTimeoutMs = 0;
 };

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "ApiCommand.h"
 #include "ApiClient.h"
+#include "TemplateEngine.h"
 
 namespace {
 BOOL ReadClipboardText(CString& text)
@@ -63,6 +64,15 @@ CString Argument(LPWSTR* argv, int index)
 {
     return argv != NULL && argv[index] != NULL ? CString(argv[index]) : CString();
 }
+
+BOOL AreCredentialsConfigured(const ApiConfig& config, CString& token)
+{
+    CString error;
+    if (!ValidateApiCredentials(config, error)) return FALSE;
+    if (!ApiRequiresCredential(config) ||
+        config.authType.CompareNoCase(_T("basic")) == 0) return TRUE;
+    return ReadApiCredentialValue(GetApiCredentialTarget(config, _T("token")), token);
+}
 }
 
 BOOL IsApiCommandLine()
@@ -84,9 +94,14 @@ int RunApiCommandLine()
     }
 
     const CString operation = Argument(argv, 2);
+    ApiConfig config;
+    if (!LoadApiConfig(config)) {
+        ::LocalFree(argv);
+        return 6;
+    }
     if (operation.CompareNoCase(_T("key-status")) == 0) {
         CString key;
-        BOOL configured = ReadApiCredential(key) && !key.IsEmpty();
+        BOOL configured = AreCredentialsConfigured(config, key);
         ::LocalFree(argv);
         return configured ? 0 : 3;
     }
@@ -102,7 +117,9 @@ int RunApiCommandLine()
         CString clipboard;
         if (!ReadClipboardText(clipboard)) { ::LocalFree(argv); return 4; }
         prompt = Argument(argv, 3);
-        prompt.Replace(_T("{{clipboard}}"), clipboard);
+        CString expandedPrompt;
+        if (!ExpandClipboardTags(prompt, clipboard, expandedPrompt)) { ::LocalFree(argv); return 4; }
+        prompt = expandedPrompt;
         prompt.Replace(_T("{{input}}"), clipboard);
     }
     else {
@@ -114,9 +131,10 @@ int RunApiCommandLine()
     CString result;
     CString error;
     TCHAR mockMode[64] = {};
-    BOOL mock = ::GetEnvironmentVariable(_T("CSEND_GEMINI_MOCK"), mockMode, _countof(mockMode)) > 0;
-    BOOL success = (mock || ReadApiCredential(key)) &&
-        ExecuteApiAction(key, prompt, 0, result, error);
+    BOOL mock = ::GetEnvironmentVariable(_T("CSEND_API_MOCK"), mockMode, _countof(mockMode)) > 0;
+    BOOL configured = AreCredentialsConfigured(config, key);
+    BOOL success = (mock || configured) &&
+        ExecuteApiAction(config, key, prompt, 0, result, error);
     if (success && !WriteClipboardText(result)) {
         ::LocalFree(argv);
         return 5;
