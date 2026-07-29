@@ -91,12 +91,9 @@ APIを使う場合は、`csend.exe`と同じ場所の`api/`へ設定JSONを置�
 
 API key、token、ID、PASSをJSON、カテゴリファイル、Git、チャット、スクリーンショットへ保存・投稿しないでください。c-sendではAPI詳細画面から登録し、Windows Credential Managerへ保存します。
 
-API機能の詳しい仕様は、次の資料を参照してください。
+設定JSONを作成・編集する人向けの資料は、次を参照してください。
 
-- [API機能設計書](docs/api/design.md)
-- [認証方式仕様](docs/api/auth-spec.md)
-- [新しいサービスを追加する資料テンプレート](docs/api/other/provider-template.md)
-- [各サービスの認証情報取得ガイド](docs/api/other/)
+[設定を作る人・開発者向け資料の一覧](docs/README.md#設定を作る人開発者向け資料)
 
 ## 提供形態
 
