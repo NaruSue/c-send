@@ -1,46 +1,41 @@
-# OpenAI ChatGPT OAuth (experimental)
+# OpenAI ChatGPT OAuth（実験的）
 
-This is an experimental connection that uses the local `openai-oauth` proxy.
-It is not an official OpenAI API integration. The standard OpenAI API
-connection remains the recommended option for stable use.
+これは、ローカルの`openai-oauth`プロキシを利用する実験的な接続です。
+OpenAI公式のAPI連携ではありません。安定した利用には、通常のOpenAI API接続を推奨します。
 
-## Setup
+## 導入方法
 
-Install and run `openai-oauth` by following its GitHub README:
+`openai-oauth`の導入と起動は、GitHubのREADMEを参照してください。
 
 https://github.com/EvanZhouDev/openai-oauth
 
-The usual local setup is:
+通常のローカル導入方法は次のとおりです。
 
 ```text
 npx openai-oauth@latest
 ```
 
-The proxy normally listens at:
+プロキシは通常、次のURLで待ち受けます。
 
 ```text
 http://127.0.0.1:10531/v1
 ```
 
-If the browser login is requested, complete the ChatGPT sign-in flow. The
-credentials are managed by the local Codex/openai-oauth setup; do not enter a
-ChatGPT email address, password, access token, or API key in the c-send JSON.
+ブラウザでのログインを求められた場合は、ChatGPTのログインを完了してください。
+認証情報はローカルのCodex／openai-oauth側で管理します。ChatGPTのメールアドレス、
+パスワード、アクセストークン、APIキーをc-sendのJSONへ入力しないでください。
 
-## c-send configuration
+## c-sendの設定
 
-Copy `api/openai-chatgpt-oauth.json` into the c-send `api` directory and reload
-the API list. The sample uses `authType: none` because the local proxy handles
-authentication.
+`api/openai-chatgpt-oauth.json`を、c-sendの`api`フォルダーへ配置してAPI一覧を再読み込みしてください。
+このサンプルでは、認証をローカルプロキシが処理するため`authType: none`を指定しています。
 
-The model list and available usage depend on the ChatGPT account and plan.
-Change the model in the sample only to a model shown by the local proxy's
-`/v1/models` endpoint.
+利用できるモデルと利用枠は、ChatGPTアカウントと契約プランに依存します。
+モデルを変更する場合は、ローカルプロキシの`/v1/models`で表示されるモデルだけを指定してください。
 
-## Limitations
+## 注意事項
 
-- The proxy and this connection are unofficial and may stop working after a
-  ChatGPT or Codex change.
-- The proxy must be running before c-send sends a request.
-- The endpoint is loopback-only by default. Do not expose it to the network
-  without adding access control.
-- Use only your own ChatGPT account. Do not share or redistribute credentials.
+- このプロキシと接続設定は非公式のため、ChatGPTまたはCodexの変更後に動作しなくなる可能性があります。
+- c-sendからリクエストを送る前に、プロキシを起動しておく必要があります。
+- 接続先は標準では自分のPC内だけから接続できます。アクセス制御なしでネットワークへ公開しないでください。
+- 自分自身のChatGPTアカウントだけを使用してください。認証情報を共有・再配布しないでください。

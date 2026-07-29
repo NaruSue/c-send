@@ -1,6 +1,6 @@
 {
   "id": "openai-chatgpt-oauth",
-  "name": "OpenAI ChatGPT OAuth (experimental)",
+  "name": "OpenAI ChatGPT OAuth（実験的）",
   "baseUrl": "http://127.0.0.1:10531/v1",
   "timeoutMs": 120000,
   "authType": "none",
@@ -8,10 +8,10 @@
   "actions": [
     {
       "id": "responses-create",
-      "name": "Responses",
+      "name": "Responses（ChatGPT OAuth）",
       "url": "/responses",
       "method": "POST",
-      "description": "Use the local openai-oauth proxy with a ChatGPT account.",
+      "description": "ローカルのopenai-oauthプロキシを経由してChatGPTアカウントを利用します。",
       "request": {
         "model": "gpt-5.5",
         "input": "{{value}}"
