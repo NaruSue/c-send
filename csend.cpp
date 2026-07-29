@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "csend.h"
 #include "csendDlg.h"
+#include "ApiCommand.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -212,6 +213,11 @@ BOOL CCsendApp::InitInstance()
 #ifdef _AFXDLL
 	Enable3dControls();			// 共有 DLL 内で MFC を使う場合はここをコールしてください。
 #endif
+
+	if (IsApiCommandLine()) {
+		m_commandExitCode = RunApiCommandLine();
+		return FALSE;
+	}
 
 	BOOL allExitRequested = HasAllExitArgument();
 	m_hSingleInstanceMutex = ::CreateMutex(NULL, FALSE, kSingleInstanceMutexName);

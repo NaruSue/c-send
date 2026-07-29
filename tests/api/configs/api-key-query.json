@@ -1,0 +1,25 @@
+{
+  "id": "mock-query-api",
+  "name": "Mock query-key API",
+  "baseUrl": "https://mock.invalid",
+  "timeoutMs": 120000,
+  "authType": "api-key-query",
+  "credentialId": "mock-query-api",
+  "keyConfig": {
+    "queryName": "api_key",
+    "prefix": ""
+  },
+  "actions": [
+    {
+      "id": "mock",
+      "name": "Mock",
+      "url": "/v1/mock",
+      "method": "POST",
+      "description": "Query key mock",
+      "request": { "prompt": "{{value}}" },
+      "response": {
+        "candidates": [{ "content": { "parts": [{ "text": "{{value}}" }] } }]
+      }
+    }
+  ]
+}

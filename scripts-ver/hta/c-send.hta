@@ -357,6 +357,12 @@ function calculateExpression(text) {
 
 function evaluateCommand(expression) {
   expression = trimText(expression);
+  var fallbackSeparator = expression.indexOf("|");
+  if (fallbackSeparator >= 0 && trimText(expression.substring(0, fallbackSeparator)) === "clipboard") {
+    var fallback = trimText(expression.substring(fallbackSeparator + 1));
+    var clipboard = getClipboardText();
+    return clipboard || fallback;
+  }
   var command = expression;
   var argumentText = "";
   var open = expression.indexOf("(");

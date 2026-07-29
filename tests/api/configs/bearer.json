@@ -1,0 +1,25 @@
+{
+  "id": "mock-bearer-api",
+  "name": "Mock bearer API",
+  "baseUrl": "https://mock.invalid",
+  "timeoutMs": 120000,
+  "authType": "bearer",
+  "credentialId": "mock-bearer-api",
+  "keyConfig": {
+    "headerName": "Authorization",
+    "prefix": "Bearer "
+  },
+  "actions": [
+    {
+      "id": "mock",
+      "name": "Mock",
+      "url": "/v1/mock",
+      "method": "GET",
+      "description": "Bearer mock",
+      "request": { "prompt": "{{value}}" },
+      "response": {
+        "candidates": [{ "content": { "parts": [{ "text": "{{value}}" }] } }]
+      }
+    }
+  ]
+}
