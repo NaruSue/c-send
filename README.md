@@ -2,89 +2,97 @@
 
 c-sendは、よく使う文章やコマンドを登録して、必要なときにすぐ呼び出せるWindows用ツールです。
 
-登録した内容はカテゴリごとに整理でき、選ぶだけでクリップボードへ送れます。
+## こんな使い方ができます
 
-文章、コマンド、URL、テンプレートなどをまとめて管理でき、AIと連携して文章の要約や添削を行うこともできます。
+- よく使うメールやチャットの文章を、すぐ入力できるようにする
+- よく使うコマンド、URL、SQL、PowerShellをまとめておく
+- 文章をカテゴリごとに整理して、必要なものだけを探す
+- 今コピーしている文章を、登録した文章の中へ差し込む
+- 日付や連番を自動で入れた文章を作る
+- 文章をAIに送って、要約・添削・翻訳をする
+- 外部サービスから天気などの情報を取得する
 
-## できること
+選んだ文章や処理結果は、クリップボードへ送られます。普段使う文章や操作を、決まった場所からすぐ使えるようにするためのツールです。
 
-- よく使う文章やコマンドを登録して、すぐ呼び出す
-- URL、SQL、PowerShell、Markdownなどをカテゴリごとに整理する
-- クリップボードの内容をテンプレートへ差し込む
-- 日時や連番などを自動で差し込む
-- 外部サービスと連携して、天気などの情報を取得する
-- AIと連携して、文章の要約・添削・変換を行う
+## まず使ってみる
 
-## 基本的な使い方
-
-1. `csend.exe`を任意のフォルダへ置いて起動します。
+1. `csend.exe`を起動します。
 2. システムメニューからカテゴリを設定します。
-3. 一覧から通常項目を選ぶと、内容がクリップボードへコピーされます。
+3. 一覧から使いたい文章やコマンドを選びます。
+
+選んだ内容がクリップボードへコピーされるので、そのままメール、チャット、ターミナルなどへ貼り付けて使えます。
 
 詳しい操作は [使い方](docs/usage.md) を参照してください。
 
-AIとの連携も試せます。API設定JSONを自分で作らずに試したい場合は、[Geminiと連携してみる](docs/api/gemini-tutorial.md)を参照してください。
+## AIで文章を整えてみる
 
-## AI/APIはオプション
+登録した文章をGeminiへ送り、要約や添削を試せます。API設定JSONを自分で作らずに試せるサンプルを用意しています。
 
-通常の定型文管理には、AIやAPIの知識は必要ありません。AI/API機能は、外部APIを使いたい人や、AIに設定JSONの作成を補助してもらいたい人向けの拡張機能です。
+[Geminiと連携してみる](docs/api/gemini-tutorial.md)
 
-API機能の目的は、利用者が自分の使いたいAI・Web APIを安全に追加・調整できることです。
+## できること
 
-1. `docs/api/config-spec.md` と対象APIの公式資料をAIへ渡す。
-2. AIに設定JSON、認証情報の取得手順、導入・動作確認手順を作成させる。
-3. JSONを`api/`へ置き、API詳細画面で秘密情報だけを登録する。
-4. カテゴリへAPI項目を追加し、プロンプトや定型文を自由にカスタマイズする。
+- 定型文、コマンド、URLなどの登録・編集・削除
+- カテゴリごとの整理と並べ替え
+- クリップボードの内容を差し込むテンプレート
+- 日時や連番などの自動入力
+- 日本語・英語のサンプルカテゴリ
+- AIや外部サービスとの連携
+- APIの実行状態、エラー、実行結果の確認
+- APIキーやtokenなどの認証情報をWindows Credential Managerへ保存
 
-## 主な機能
+## 同梱サンプル
 
-- 通常の定型文、テンプレート、カウンター、API項目を同じカテゴリへ混在
-- `{{clipboard}}`、`{{clipboard|代替文字列}}`などのテンプレート展開
-- APIごとの基本URL、Action、HTTP method、JSON request／response、固定ヘッダー、タイムアウト設定
-- 認証なし、API key header/query、Bearer、Basic 認証
-- APIキー・token・Basic認証情報を Windows Credential Manager へ保存
-- API実行状態、エラー、保持結果を右寄せアイコンで表示
-- クリップボードが実行中に変更された場合は自動上書きを避け、保持結果から手動コピー
-- API設定・カテゴリサンプルをJSONファイルとして共有・更新
+通常のサンプルとして、次のカテゴリを同梱しています。
 
-## 同梱APIサンプル
+- メール・チャット
+- 挨拶
+- Git
+- SQL
+- PowerShell
+- Markdown
+- JSON
+- HTML
+- URL
+- Windowsコマンド
 
-`api/`には次の設定JSONを同梱しています。秘密情報は含まれません。
+`samples/jp/`と`samples/en/`にあるJSONをカテゴリとして追加すると、そのまま利用できます。
 
-| サービス | 例 | 認証 |
-| --- | --- | --- |
-| Gemini | 文章生成 | API key header |
-| OpenAI | Responses API | Bearer |
-| Anthropic Claude API | Messages API | API key header + 固定ヘッダー |
-| GitHub REST API | 既定ブランチ名・ブランチ一覧 | Bearer |
-| Open-Meteo | 東京の現在気温・最高気温 | 不要 |
+## AI・外部サービスとの連携
 
-各サービスの認証情報取得・登録方法は [docs/api/other/](docs/api/other/) にあります。天気APIのカテゴリ例は [samples/jp/天気 API.json](<samples/jp/天気 API.json>) と [samples/en/Weather API.json](<samples/en/Weather API.json>) です。
+### Geminiを使う
 
-## APIを追加する
+[Geminiと連携してみる](docs/api/gemini-tutorial.md)では、Gemini API keyの取得、c-sendへの登録、サンプルカテゴリの追加、要約・添削の実行までを説明しています。
 
-最初に [API設定JSON仕様](docs/api/config-spec.md) を読み、対象APIの公式資料と一緒にAIへ渡してください。この仕様書には、AIが設定JSONだけでなく、キー取得、c-sendへの登録、カテゴリへの追加、動作確認までを出力するための依頼文が含まれています。
+### 別のAIやサービスを追加する
 
-初めてAPIを利用する場合は、先に [API利用者向け導入手順](docs/api/getting-started.md) を参照してください。
+利用したいサービスの公式資料と、次の仕様書をAIへ渡すと、c-send用の設定JSONと導入手順を作成できます。
 
-利用者自身で作る場合も、次の資料を起点にできます。
+- [API利用者向け導入手順](docs/api/getting-started.md)
+- [API設定JSON仕様](docs/api/config-spec.md)
+
+現在、次の設定サンプルを同梱しています。
+
+| サービス | できること |
+| --- | --- |
+| Gemini | 文章生成 |
+| OpenAI | Responses APIによる文章生成 |
+| Anthropic Claude API | Messages APIによる文章生成 |
+| GitHub | リポジトリ情報の取得 |
+| Open-Meteo | 東京の現在気温・最高気温の取得 |
+
+APIを使う場合は、`csend.exe`と同じ場所の`api/`へ設定JSONを置き、システムメニューの「API」から認証情報を登録します。
+
+### 認証情報について
+
+API key、token、ID、PASSをJSON、カテゴリファイル、Git、チャット、スクリーンショットへ保存・投稿しないでください。c-sendではAPI詳細画面から登録し、Windows Credential Managerへ保存します。
+
+API機能の詳しい仕様は、次の資料を参照してください。
 
 - [API機能設計書](docs/api/design.md)
 - [認証方式仕様](docs/api/auth-spec.md)
-- [API設定JSON仕様](docs/api/config-spec.md)
 - [新しいサービスを追加する資料テンプレート](docs/api/other/provider-template.md)
-
-API仕様が変わった場合は、現在の設定JSON、同じバージョンの`config-spec.md`、最新の公式資料をAIへ渡して更新版を作成できます。
-
-### 秘密情報の扱い
-
-API key、token、ID、PASSをJSON、カテゴリファイル、Git、チャット、スクリーンショットへ保存・投稿しないでください。ネイティブ版ではAPI詳細画面から登録し、Windows Credential Managerへ保存します。
-
-APIを使う場合は、`csend.exe`と同じ場所の`api/`へ設定JSONを置き、システムメニューの「API」から認証情報を登録します。詳しくは [API利用者向け導入手順](docs/api/getting-started.md) を参照してください。
-
-## サンプルデータ
-
-`samples/jp/` と `samples/en/` に、Git、SQL、PowerShell、Markdown、JSON、HTML、URL、AIプロンプト、天気APIなどのカテゴリ例を入れています。公開JSONをローカルへ取り込んで自由に編集したり、GitHub Raw URLで読み取り専用カタログとして参照したりできます。
+- [各サービスの認証情報取得ガイド](docs/api/other/)
 
 ## 提供形態
 
@@ -93,7 +101,7 @@ APIを使う場合は、`csend.exe`と同じ場所の`api/`へ設定JSONを置�
 - [HTA版](scripts-ver/hta/readme.md): 外部バイナリを導入できないWindows環境向け
 - [PWA版](scripts-ver/pwa/readme.md): iPhone / iPadOS / Android向け
 
-API通信機能は、ネイティブ版の機能として提供します。
+API通信機能はネイティブ版の機能です。
 
 ## ビルド
 
