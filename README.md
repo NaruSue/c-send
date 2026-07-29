@@ -46,6 +46,8 @@ API機能の目的は、利用者が自分の使いたいAI・Web APIを安全�
 
 最初に [API設定JSON仕様](docs/api/config-spec.md) を読み、対象APIの公式資料と一緒にAIへ渡してください。この仕様書には、AIが設定JSONだけでなく、キー取得、c-sendへの登録、カテゴリへの追加、動作確認までを出力するための依頼文が含まれています。
 
+初めてAPIを利用する場合は、先に [API利用者向け導入手順](docs/api/getting-started.md) を参照してください。
+
 利用者自身で作る場合も、次の資料を起点にできます。
 
 - [API機能設計書](docs/api/design.md)
