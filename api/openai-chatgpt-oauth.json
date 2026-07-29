@@ -1,0 +1,32 @@
+{
+  "id": "openai-chatgpt-oauth",
+  "name": "OpenAI ChatGPT OAuth (experimental)",
+  "baseUrl": "http://127.0.0.1:10531/v1",
+  "timeoutMs": 120000,
+  "authType": "none",
+  "keyConfig": {},
+  "actions": [
+    {
+      "id": "responses-create",
+      "name": "Responses",
+      "url": "/responses",
+      "method": "POST",
+      "description": "Use the local openai-oauth proxy with a ChatGPT account.",
+      "request": {
+        "model": "gpt-5.5",
+        "input": "{{value}}"
+      },
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "{{value}}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
