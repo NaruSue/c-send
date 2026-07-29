@@ -891,10 +891,9 @@ void CCsendDlg::OnSize(UINT nType, int cx, int cy)
 
 	// TODO: この位置にメッセージ ハンドラ用のコードを追加してください
 // Make-->
-	if (nType == SIZE_MINIMIZED) {
-		// 最小化したウインドウを非表示にすると、アプリが終了したように見える。
-		// タスクバーから通常どおり復元できるよう、最小化状態を維持する。
-		return;
+	if( IsIconic() ){	// アイコン化されたら
+		ShowWindow( SW_HIDE );	// ウインドウを非表示にします
+        return;
     }
 	
 	if( !IsZoomed() ){	// 最大化でなければ
