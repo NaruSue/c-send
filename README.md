@@ -1,117 +1,121 @@
 # c-send
 
-c-send は、よく使う文章・コマンド・プロンプトをカテゴリごとに管理し、クリックだけでクリップボードへ送れる Windows 用の軽量スニペット管理ツールです。
+c-sendは、よく使う文章やコマンドを登録して、必要なときにすぐ呼び出せるWindows用ツールです。
 
-AI プロンプト、テストデータ、Git コマンド、SQL、PowerShell、メール定型文、チャットの定型返信など、繰り返し入力する内容を一覧からすぐ選べます。
+初めて使う方は、まず [はじめて使う人へ](docs/first-use.md) を読んでください。
+
+## こんな使い方ができます
+
+- よく使うメールやチャットの文章を、すぐ入力できるようにする
+- よく使うコマンド、URL、SQL、PowerShellをまとめておく
+- 文章をカテゴリごとに整理して、必要なものだけを探す
+- 今コピーしている文章を、登録した文章の中へ差し込む
+- 日付や連番を自動で入れた文章を作る
+- 文章をAIに送って、要約・添削・翻訳をする
+- 外部サービスから天気などの情報を取得する
+
+選んだ文章や処理結果は、クリップボードへ送られます。普段使う文章や操作を、決まった場所からすぐ使えるようにするためのツールです。
+
+## まず使ってみる
+
+1. `csend.exe`を起動します。
+2. システムメニューからカテゴリを設定します。
+3. 一覧から使いたい文章やコマンドを選びます。
+
+選んだ内容がクリップボードへコピーされるので、そのままメール、チャット、ターミナルなどへ貼り付けて使えます。
+
+詳しい操作は [使い方](docs/usage.md) を参照してください。
+
+## AIで文章を整えてみる
+
+登録した文章をGeminiへ送り、要約や添削を試せます。API設定JSONを自分で作らずに試せるサンプルを用意しています。
+
+[Geminiと連携してみる](docs/api/gemini-tutorial.md)
+
+## できること
+
+- 定型文、コマンド、URLなどの登録・編集・削除
+- カテゴリごとの整理と並べ替え
+- クリップボードの内容を差し込むテンプレート
+- 日時や連番などの自動入力
+- 日本語・英語のサンプルカテゴリ
+- AIや外部サービスとの連携
+- APIの実行状態、エラー、実行結果の確認
+- APIキーやtokenなどの認証情報をWindows Credential Managerへ保存
+
+## 同梱サンプル
+
+通常のサンプルとして、次のカテゴリを同梱しています。
+
+- メール・チャット
+- 挨拶
+- Git
+- SQL
+- PowerShell
+- Markdown
+- JSON
+- HTML
+- URL
+- Windowsコマンド
+
+`samples/jp/`と`samples/en/`にあるJSONをカテゴリとして追加すると、そのまま利用できます。
+
+公開テンプレートをURLから参照する方法と、ダウンロードして自分用に編集する方法は [テンプレートを探して使う](docs/template-catalog.md) を参照してください。
+
+## AI・外部サービスとの連携
+
+### Geminiを使う
+
+[Geminiと連携してみる](docs/api/gemini-tutorial.md)では、Gemini API keyの取得、c-sendへの登録、サンプルカテゴリの追加、要約・添削の実行までを説明しています。
+
+### 別のAIやサービスを追加する
+
+利用したいサービスの公式資料と、次の仕様書をAIへ渡すと、c-send用の設定JSONと導入手順を作成できます。
+
+- [API利用者向け導入手順](docs/api/getting-started.md)
+- [API設定JSON仕様](docs/api/config-spec.md)
+
+現在、次の設定サンプルを同梱しています。
+
+| サービス | できること |
+| --- | --- |
+| Gemini | 文章生成 |
+| OpenAI | Responses APIによる文章生成 |
+| Anthropic Claude API | Messages APIによる文章生成 |
+| GitHub | リポジトリ情報の取得 |
+| Open-Meteo | 東京の現在気温・最高気温の取得 |
+
+APIを使う場合は、`csend.exe`と同じ場所の`api/`へ設定JSONを置き、システムメニューの「API」から認証情報を登録します。
+
+### 認証情報について
+
+API key、token、ID、PASSをJSON、カテゴリファイル、Git、チャット、スクリーンショットへ保存・投稿しないでください。c-sendではAPI詳細画面から登録し、Windows Credential Managerへ保存します。
+
+設定JSONを作成・編集する人向けの資料は、次を参照してください。
+
+[設定を作る人・開発者向け資料の一覧](docs/README.md#設定を作る人開発者向け資料)
 
 ## 提供形態
 
-このREADMEは、Windowsネイティブ版（`csend.exe`）の説明です。利用環境に応じて、次の版も選べます。
+このREADMEはWindowsネイティブ版（`csend.exe`）の説明です。
 
-- [HTA版](scripts-ver/hta/readme.md): 外部バイナリを導入できない、セキュリティ要件の厳しいWindows環境向けです。HTAとして起動し、単一カテゴリの定型文を扱います。
-- [PWA版](scripts-ver/pwa/readme.md): iPhone / iPadOS / Androidで使えるホーム画面追加対応版です。端末内のデータはIndexedDBに保存します。
+- [HTA版](scripts-ver/hta/readme.md): 外部バイナリを導入できないWindows環境向け
+- [PWA版](scripts-ver/pwa/readme.md): iPhone / iPadOS / Android向け
 
-## c-send とは
+API通信機能はネイティブ版の機能です。
 
-c-send は、単なるクリップボードツールではなく、繰り返し入力を高速化するためのツールです。
-
-- カテゴリごとにスニペットを整理できます
-- 一覧から見て選べるので、辞書登録のように「覚えて打つ」必要がありません
-- テキスト／JSON形式のデータファイルで管理できるので、編集やバックアップがしやすいです
-- ローカルファイルと URL の両方をデータ元にできます
-- URL のカテゴリは参照専用です
-- 読み取り専用のカテゴリは `RO` と表示されます
-- コピー時にカーソル付近へアプリ内 tip を表示します
-- 必要に応じて Windows の toast 通知も使えます
-
-## こんな用途に使えます
-
-- AI プロンプト管理
-- テストデータ入力
-- Git コマンド管理
-- SQL の定型文管理
-- PowerShell コマンド管理
-- メール文面のひな形管理
-- チャットの定型返信管理
-
-## 特長
-
-- 軽量でシンプルです
-- タスクトレイに常駐します
-- タスクトレイからすばやく操作できます
-- カテゴリごとに定型文を分けられます
-- ローカルファイルと URL の両方をデータ元にできます
-- URL カテゴリは参照専用です
-- v1.9ではJSON形式のデータファイルに対応しました
-- 読み取り専用のカテゴリは `RO` と表示されます
-- コピー時にアプリ内 tip を表示します
-- 必要に応じて Windows の toast 通知も使えます
-- `setting.ini` で表示や通知を調整できます
-
-## 使い方
-
-基本手順は [使い方](docs/usage.md) にまとめています。
-
-1. `csend.exe` を任意のフォルダに置きます
-2. `csend.exe` を起動します
-3. タスクトレイのアイコンから本体画面を開きます
-4. カテゴリを選びます
-5. 一覧から定型文をクリックすると、クリップボードに送られます
-
-カテゴリの新規作成や並べ替えの説明は、[使い方](docs/usage.md) の「カテゴリの作成」を見てください。
-
-## サンプルデータ
-
-`samples/` に、すぐ試せるサンプルデータを入れています。
-
-- `samples/jp/` 日本語サンプル
-- `samples/en/` 英語サンプル
-
-たとえば、Git、SQL、PowerShell、Markdown、JSON、HTML、URL などの例があります。
-
-## インストール / ダウンロード
-
-配布物は次のページから入手できます。
-
-- [GitHub Releases](https://github.com/NaruSue/c-send/releases)
-- [Vector](https://www.vector.co.jp/soft/win95/util/se061481.html?srsltid=AfmBOooY1phVnlrRnupG-bHEt6iyhr1YMWpCVOBYakbIfdn4s3pHxnWY#google_vignette)
-
-ダウンロードした `csend.exe` を任意のフォルダに置いて起動してください。
-
-## ビルド方法
-
-ソースからビルドする場合は、リポジトリ直下で `build.cmd` を実行します。
+## ビルド
 
 ```bat
 build.cmd Release
 ```
 
-必要に応じて Visual Studio Build Tools などの環境を用意してください。
+API機能は外部サービスへ接続せずモックテストできます。テスト仕様は [API mock test specification](docs/api/mock-test-spec.md) を参照してください。
 
-## 設定ファイル
+## ダウンロード
 
-`setting.ini` は `csend.exe` と同じフォルダに置きます。
-初回起動時に自動で作成されます。
-
-主な設定:
-
-- `[category]` カテゴリ一覧と前回選択したカテゴリ
-- `[font]` 表示フォント
-- `[Window]` ウィンドウ位置
-- `[notification]` 通知方法
-- `[message]` 表示文言
-
-通知について:
-
-- アプリ内 tip は既定で 3 秒表示します
-- `setting.ini` の `notification.tip_ms` で表示時間を変えられます
-- `setting.ini` の `notification.toast=on` にすると toast を表示します
-- `notification.toast=off` の場合は toast を表示しません
-
-## 補足
-
-- 詳しい設定仕様は [setting.ini 仕様](docs/setting-ini-spec.md) を参照してください
-- データファイルの形式は [データファイル仕様](docs/data-file-spec.md) にまとめています
+- [GitHub Releases](https://github.com/NaruSue/c-send/releases)
+- [Vector](https://www.vector.co.jp/soft/win95/util/se061481.html)
 
 ## ライセンス
 

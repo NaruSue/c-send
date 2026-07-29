@@ -1,6 +1,8 @@
 name: Build
 
 on:
+  push:
+    branches: ["**"]
   workflow_dispatch:
     inputs:
       ref:
@@ -39,6 +41,46 @@ jobs:
         shell: pwsh
         run: |
           .\build.cmd Release
+
+      - name: Run API mock tests
+        shell: pwsh
+        env:
+          CSEND_API_MOCK: success
+        run: |
+          $exe = Resolve-Path .\Release\x64\csend.exe
+          $configs = Get-ChildItem .\tests\api\configs -Filter *.json
+          foreach ($config in $configs) {
+            $env:CSEND_API_CONFIG = $config.FullName
+            $process = Start-Process -FilePath $exe -ArgumentList '/api', 'ping' -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "Mock config test failed ($($config.Name)): $($process.ExitCode)" }
+            if ((Get-Clipboard -Raw) -ne 'API_TEST_OK') { throw "Mock response was not copied ($($config.Name))." }
+          }
+
+          $env:CSEND_API_CONFIG = (Resolve-Path .\tests\api\configs\none.json).Path
+          $process = Start-Process -FilePath $exe -ArgumentList '/api', 'key-status' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "No-auth readiness test failed: $($process.ExitCode)" }
+
+          foreach ($name in @('api-key-header.json', 'bearer.json', 'basic.json')) {
+            $env:CSEND_API_CONFIG = (Resolve-Path ".\tests\api\configs\$name").Path
+            $process = Start-Process -FilePath $exe -ArgumentList '/api', 'key-status' -Wait -PassThru
+            if ($process.ExitCode -ne 3) { throw "Missing credential test failed ($name): $($process.ExitCode)" }
+          }
+
+          foreach ($name in @('missing-id.json', 'unsupported-method.json')) {
+            $env:CSEND_API_CONFIG = (Resolve-Path ".\tests\api\invalid\$name").Path
+            $process = Start-Process -FilePath $exe -ArgumentList '/api', 'key-status' -Wait -PassThru
+            if ($process.ExitCode -ne 6) { throw "Invalid configuration test failed ($name): $($process.ExitCode)" }
+          }
+          Remove-Item Env:CSEND_API_CONFIG -ErrorAction SilentlyContinue
+          $env:CSEND_API_CONFIG = (Resolve-Path .\tests\api\configs\none.json).Path
+
+          $env:CSEND_API_MOCK = 'malformed'
+          $process = Start-Process -FilePath $exe -ArgumentList '/api', 'ping' -Wait -PassThru
+          if ($process.ExitCode -ne 10) { throw "Mock malformed test failed: $($process.ExitCode)" }
+
+          $env:CSEND_API_MOCK = 'http401'
+          $process = Start-Process -FilePath $exe -ArgumentList '/api', 'ping' -Wait -PassThru
+          if ($process.ExitCode -ne 10) { throw "Mock HTTP 401 test failed: $($process.ExitCode)" }
 
       - name: Inspect release output
         if: always()

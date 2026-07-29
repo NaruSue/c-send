@@ -1,0 +1,17 @@
+{
+  "name": "Invalid missing ID",
+  "baseUrl": "https://mock.invalid",
+  "timeoutMs": 120000,
+  "authType": "none",
+  "keyConfig": {},
+  "actions": [
+    {
+      "id": "mock",
+      "name": "Mock",
+      "url": "/v1/mock",
+      "method": "POST",
+      "request": { "prompt": "{{value}}" },
+      "response": { "text": "{{value}}" }
+    }
+  ]
+}
