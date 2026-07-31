@@ -25,6 +25,7 @@ Windows用のネイティブ版c-sendとは別に、iPhoneなどのスマート�
 - `＋` ボタンからのクリップボード取り込み
 - IndexedDBへの端末内保存
 - iPhoneのホーム画面へ追加してPWAとして利用
+- API定義を使ったAI・外部APIの実行
 
 ## iPhoneへの追加
 
@@ -58,6 +59,17 @@ Windows用のネイティブ版c-sendとは別に、iPhoneなどのスマート�
 同じようなタイトルの項目を誤って選んでも、確認画面で内容を見てから別の項目を選び直せます。
 
 テンプレート項目は一覧で `[T]` と表示され、コピー時に日時やクリップボードの内容を展開します。詳しくは [テンプレートの使い方](../../docs/template-usage.md) を参照してください。
+
+### APIを使う
+
+1. 左上のアイコンから `API設定` を開きます。
+2. API設定画面でAPI定義を新規作成するか、API設定JSONをファイル・URL・IndexedDBから読み込みます。
+3. APIの認証方式を確認し、API token、Bearer token、またはBasic認証のID／PASSを登録します。
+4. 定型文の追加・編集画面でAPIモードを選び、APIとActionを指定します。
+5. 入力本文と、Request JSON内の`{{value}}`へ入力が渡ることを確認して保存します。
+6. 一覧からAPI項目を実行し、結果を確認してからクリップボードへコピーします。
+
+API定義JSONにはAPI tokenなどの機密情報を含めないでください。資格情報はこのPWAを利用している端末・ブラウザ内のIndexedDBへ保存されます。URLからの読み込みは取得先がCORSを許可している必要があります。
 
 ### JSONファイルを追加する
 
@@ -138,6 +150,15 @@ GitHub Pagesへのデプロイ後、公開URLからアプリを開けます。
 - `index.html`
 - `service-worker.js`
 - `samples.json`
+
+## API定義・AIプロンプトの配布
+
+ネイティブ版と共通のGemini API定義をダウンロードして、PWAの「API設定」からJSON読み込みできます。
+
+- [Gemini API設定JSON](./api/gemini.json)
+- [AI APIプロンプトサンプル（日本語）](./samples/jp/AI%20API.json)
+
+手順は、API設定JSONをダウンロードし、PWAの「メニュー」→「API設定」→「JSON読込」で読み込みます。続けてAPI tokenを入力して保存し、AI APIプロンプトサンプルを「URLから追加」またはファイル読み込みで登録します。
 - `manifest.webmanifest`
 - `apple-touch-icon.png`
 

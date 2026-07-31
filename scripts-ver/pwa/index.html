@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v1.18</title>
+<title>c-send PWA v1.19</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -507,7 +507,7 @@ button:active {
   color: var(--muted);
   font-size: 0.92rem;
 }
-.field input, .field textarea {
+.field input, .field textarea, .field select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -518,6 +518,52 @@ button:active {
 .field textarea {
   resize: vertical;
   min-height: 180px;
+}
+.field select {
+  appearance: auto;
+}
+.api-modal {
+  width: min(720px, calc(100vw - 24px));
+}
+.api-modal #apiJson {
+  min-height: 260px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+}
+.api-tools {
+  margin-bottom: 16px;
+}
+.api-tools button {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+.api-list {
+  display: grid;
+  gap: 8px;
+}
+.api-list-empty {
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+}
+.api-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fbfd;
+}
+.api-list-row.active {
+  border-color: var(--brand-2);
+  background: var(--accent);
+}
+.api-list-row button {
+  padding: 7px 9px;
+  border-radius: 10px;
 }
 .mode-options {
   display: flex;
@@ -573,7 +619,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v1.16</h1>
+          <h1 class="title" id="appTitle">c-send PWA v1.19</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -642,11 +688,15 @@ button:active {
       <button class="menu-item" id="appMenuBackup" type="button">バックアップ</button>
       <button class="menu-item" id="appMenuRestore" type="button">リストア</button>
       <div class="menu-divider" role="separator"></div>
+      <button class="menu-item" id="appMenuApi" type="button">API設定</button>
+      <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuCheckVersion" type="button">バージョンチェック</button>
     </div>
   </div>
   <input id="restoreFileInput" type="file" accept="application/json,.json" hidden />
   <input id="addFileInput" type="file" accept="application/json,.json" multiple hidden />
+  <input id="apiDefinitionFileInput" type="file" accept="application/json,.json" hidden />
+  <input id="settingsRestoreFileInput" type="file" accept="application/json,.json" hidden />
 
   <div class="menu" id="itemMenu" aria-hidden="true">
     <div class="menu-backdrop" id="menuBackdrop"></div>
@@ -679,6 +729,13 @@ button:active {
           <span>種類</span>
           <label><input id="modePlain" type="radio" name="itemMode" value="plain" /> plain text</label>
           <label><input id="modeTemplate" type="radio" name="itemMode" value="template" /> template</label>
+          <label><input id="modeApi" type="radio" name="itemMode" value="api" /> API</label>
+        </div>
+        <div class="field" id="apiItemOptions" hidden>
+          <label for="itemApi">API / Action</label>
+          <select id="itemApi"></select>
+          <select id="itemAction"></select>
+          <p class="editor-hint" id="apiItemHint">API設定画面で定義を追加してください。</p>
         </div>
       </div>
       <div class="modal-foot">
@@ -688,14 +745,67 @@ button:active {
     </div>
   </div>
 
+  <div class="modal-backdrop" id="apiBackdrop" aria-hidden="true">
+    <div class="modal api-modal" role="dialog" aria-modal="true" aria-labelledby="apiTitle">
+      <div class="modal-head"><h2 id="apiTitle">API設定</h2></div>
+      <div class="modal-body">
+        <div class="field">
+          <label>保存済みAPI</label>
+          <div id="apiList" class="api-list"></div>
+        </div>
+        <div class="mode-options api-tools">
+          <button id="apiNew" type="button">新規作成</button>
+          <button id="apiLoadFile" type="button">JSON読込</button>
+          <button id="apiLoadUrl" type="button">URL読込</button>
+          <button id="apiBackup" type="button">設定バックアップ</button>
+          <button id="apiRestore" type="button">設定リストア</button>
+        </div>
+        <div class="field">
+          <label for="apiJson">API設定JSON</label>
+          <textarea id="apiJson" spellcheck="false" placeholder="ネイティブ版と共通のAPI設定JSON"></textarea>
+        </div>
+        <div class="field">
+          <label for="apiToken">API token / Bearer token</label>
+          <input id="apiToken" type="password" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="apiUsername">Basic認証 ID</label>
+          <input id="apiUsername" type="text" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="apiPassword">Basic認証 PASS</label>
+          <input id="apiPassword" type="password" autocomplete="new-password" />
+        </div>
+        <p class="editor-hint">tokenやBasic認証情報はJSONへ保存せず、この端末のIndexedDBへ保存します。空欄で保存すると既存値を維持します。</p>
+      </div>
+      <div class="modal-foot">
+        <button id="apiClose" type="button">閉じる</button>
+        <button class="primary" id="apiSave" type="button">API設定を保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="apiResultBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="apiResultTitle">
+      <div class="modal-head"><h2 id="apiResultTitle">API結果</h2></div>
+      <div class="modal-body"><pre class="copy-preview-content" id="apiResultContent"></pre></div>
+      <div class="modal-foot">
+        <button id="apiResultClose" type="button">閉じる</button>
+        <button class="primary" id="apiResultCopy" type="button">結果をコピー</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 (() => {
-  const APP_VERSION = "1.18";
+  const APP_VERSION = "1.19";
   const APP_NAME = "c-send PWA";
   const DB_NAME = "c-send-pwa";
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const STORE_NAME = "app";
   const STATE_KEY = "state";
+  const API_STORE_NAME = "apiDefinitions";
+  const CREDENTIAL_STORE_NAME = "apiCredentials";
 
   const state = {
     items: [],
@@ -709,7 +819,11 @@ button:active {
     db: null,
     deferredInstallPrompt: null,
     searchText: "",
-    activeTag: ""
+    activeTag: "",
+    apiDefinitions: [],
+    apiCredentials: {},
+    apiEditingId: "",
+    apiResultText: ""
   };
 
   const els = {
@@ -732,9 +846,12 @@ button:active {
     appMenuAddUrl: document.getElementById("appMenuAddUrl"),
     appMenuBackup: document.getElementById("appMenuBackup"),
     appMenuRestore: document.getElementById("appMenuRestore"),
+    appMenuApi: document.getElementById("appMenuApi"),
     appMenuCheckVersion: document.getElementById("appMenuCheckVersion"),
     restoreFileInput: document.getElementById("restoreFileInput"),
     addFileInput: document.getElementById("addFileInput"),
+    apiDefinitionFileInput: document.getElementById("apiDefinitionFileInput"),
+    settingsRestoreFileInput: document.getElementById("settingsRestoreFileInput"),
     installPopover: document.getElementById("installPopover"),
     installCloseButton: document.getElementById("installCloseButton"),
     fabAdd: document.getElementById("fabAdd"),
@@ -755,8 +872,31 @@ button:active {
     itemValue: document.getElementById("itemValue"),
     modePlain: document.getElementById("modePlain"),
     modeTemplate: document.getElementById("modeTemplate"),
+    modeApi: document.getElementById("modeApi"),
+    apiItemOptions: document.getElementById("apiItemOptions"),
+    itemApi: document.getElementById("itemApi"),
+    itemAction: document.getElementById("itemAction"),
+    apiItemHint: document.getElementById("apiItemHint"),
     saveEdit: document.getElementById("saveEdit"),
-    cancelEdit: document.getElementById("cancelEdit")
+    cancelEdit: document.getElementById("cancelEdit"),
+    apiBackdrop: document.getElementById("apiBackdrop"),
+    apiList: document.getElementById("apiList"),
+    apiJson: document.getElementById("apiJson"),
+    apiToken: document.getElementById("apiToken"),
+    apiUsername: document.getElementById("apiUsername"),
+    apiPassword: document.getElementById("apiPassword"),
+    apiNew: document.getElementById("apiNew"),
+    apiLoadFile: document.getElementById("apiLoadFile"),
+    apiLoadUrl: document.getElementById("apiLoadUrl"),
+    apiBackup: document.getElementById("apiBackup"),
+    apiRestore: document.getElementById("apiRestore"),
+    apiClose: document.getElementById("apiClose"),
+    apiSave: document.getElementById("apiSave"),
+    apiResultBackdrop: document.getElementById("apiResultBackdrop"),
+    apiResultTitle: document.getElementById("apiResultTitle"),
+    apiResultContent: document.getElementById("apiResultContent"),
+    apiResultClose: document.getElementById("apiResultClose"),
+    apiResultCopy: document.getElementById("apiResultCopy")
   };
 
   function setStatus(text, isError) {
@@ -847,6 +987,42 @@ button:active {
     state.menuIndex = -1;
   }
 
+  function updateApiItemOptions() {
+    const enabled = els.modeApi.checked;
+    els.apiItemOptions.hidden = !enabled;
+    if (!enabled) return;
+    const previousApi = els.itemApi.value;
+    els.itemApi.innerHTML = "";
+    state.apiDefinitions.forEach((definition) => {
+      const option = document.createElement("option");
+      option.value = definition.id;
+      option.textContent = `${definition.name} (${definition.id})`;
+      els.itemApi.appendChild(option);
+    });
+    if (state.apiDefinitions.some((definition) => definition.id === previousApi)) {
+      els.itemApi.value = previousApi;
+    }
+    updateActionOptions();
+    els.apiItemHint.textContent = state.apiDefinitions.length
+      ? "APIとActionを選択して、本文中の{{clipboard}}などを入力へ展開できます。"
+      : "API設定画面で定義を追加してください。";
+  }
+
+  function updateActionOptions() {
+    const definition = state.apiDefinitions.find((candidate) => candidate.id === els.itemApi.value);
+    const previousAction = els.itemAction.value;
+    els.itemAction.innerHTML = "";
+    (definition ? definition.actions : []).forEach((action) => {
+      const option = document.createElement("option");
+      option.value = action.id;
+      option.textContent = `${action.name} (${action.method})`;
+      els.itemAction.appendChild(option);
+    });
+    if (definition && definition.actions.some((action) => action.id === previousAction)) {
+      els.itemAction.value = previousAction;
+    }
+  }
+
   function openEditor(index, initialValue) {
     state.editingIndex = index;
     const editing = index >= 0;
@@ -857,6 +1033,11 @@ button:active {
     const mode = editing ? (state.items[index].mode || "plain") : "plain";
     els.modePlain.checked = mode === "plain";
     els.modeTemplate.checked = mode === "template";
+    els.modeApi.checked = mode === "api";
+    updateApiItemOptions();
+    els.itemApi.value = editing && state.items[index].options ? (state.items[index].options.api || "") : (state.apiDefinitions[0] ? state.apiDefinitions[0].id : "");
+    updateActionOptions();
+    els.itemAction.value = editing && state.items[index].options ? (state.items[index].options.action || "") : (els.itemAction.options[0] ? els.itemAction.options[0].value : "");
     els.editorHint.textContent = editing
       ? "タイトル・タグ・本文を編集できます。"
       : "コピー済みの内容を取り込みます。読み取れない場合はここへ貼り付けてください。";
@@ -875,7 +1056,7 @@ button:active {
     const tagsSource = Array.isArray(item && item.tags)
       ? item.tags
       : String(item && item.tags ? item.tags : "").split(",");
-    const mode = item && ["plain", "template", "counter"].includes(item.mode)
+    const mode = item && ["plain", "template", "counter", "api"].includes(item.mode)
       ? item.mode
       : "plain";
     return Object.assign({}, item || {}, {
@@ -1077,7 +1258,117 @@ button:active {
   }
 
   async function resolveItemText(item) {
-    return item.mode === "template" ? await evaluateTemplate(item.value || "") : (item.value || "");
+    return item.mode === "template" || item.mode === "api" ? await evaluateTemplate(item.value || "") : (item.value || "");
+  }
+
+  function replaceApiValue(value, input) {
+    if (typeof value === "string") return value.split("{{value}}").join(input);
+    if (Array.isArray(value)) return value.map((item) => replaceApiValue(item, input));
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceApiValue(item, input)]));
+    }
+    return value;
+  }
+
+  function extractApiValue(actual, pattern) {
+    const values = [];
+    function visit(current, expected) {
+      if (typeof expected === "string" && expected === "{{value}}") {
+        if (current !== undefined && current !== null) values.push(String(current));
+        return;
+      }
+      if (Array.isArray(expected)) {
+        if (!expected.length || !Array.isArray(current)) return;
+        if (expected.length === 1) current.forEach((item) => visit(item, expected[0]));
+        else expected.forEach((item, index) => visit(current[index], item));
+        return;
+      }
+      if (expected && typeof expected === "object") {
+        if (!current || typeof current !== "object") return;
+        Object.entries(expected).forEach(([key, value]) => visit(current[key], value));
+      }
+    }
+    visit(actual, pattern);
+    if (!values.length) throw new Error("APIレスポンスから結果を抽出できませんでした。");
+    return values.join("\n");
+  }
+
+  function joinApiUrl(baseUrl, actionUrl) {
+    return `${String(baseUrl).replace(/\/$/, "")}/${String(actionUrl).replace(/^\//, "")}`;
+  }
+
+  async function executeApiItem(item) {
+    const options = item.options || {};
+    const definition = state.apiDefinitions.find((candidate) => candidate.id === options.api);
+    const action = definition && definition.actions.find((candidate) => candidate.id === options.action);
+    if (!definition || !action) throw new Error("APIまたはActionの定義が見つかりません。API設定を確認してください。");
+    const credential = definition.credentialId ? state.apiCredentials[definition.credentialId] : null;
+    if (definition.authType !== "none" && !credential) throw new Error("API認証情報が未登録です。API設定を開いて登録してください。");
+    const input = await resolveItemText(item);
+    let requestUrl = joinApiUrl(definition.baseUrl, action.url);
+    const headers = {};
+    const keyConfig = definition.keyConfig || {};
+    Object.entries(keyConfig).forEach(([key, value]) => {
+      if (key.startsWith("staticHeader.")) headers[key.substring("staticHeader.".length)] = String(value);
+    });
+    const authValue = credential && credential.token ? credential.token : "";
+    if (definition.authType === "api-key-header") {
+      headers[keyConfig.headerName || "X-API-Key"] = String(keyConfig.prefix || "") + authValue;
+    } else if (definition.authType === "bearer") {
+      headers[keyConfig.headerName || "Authorization"] = String(keyConfig.prefix === undefined ? "Bearer " : keyConfig.prefix) + authValue;
+    } else if (definition.authType === "api-key-query") {
+      const query = new URL(requestUrl);
+      query.searchParams.set(keyConfig.queryName || "api_key", String(keyConfig.prefix || "") + authValue);
+      requestUrl = query.href;
+    } else if (definition.authType === "basic") {
+      const raw = `${credential.username || ""}:${credential.password || ""}`;
+      headers.Authorization = `Basic ${btoa(unescape(encodeURIComponent(raw)))}`;
+    }
+    const requestInit = { method: String(action.method).toUpperCase(), headers, cache: "no-store" };
+    if (action.request !== undefined && requestInit.method !== "GET" && requestInit.method !== "DELETE") {
+      headers["Content-Type"] = "application/json";
+      requestInit.body = JSON.stringify(replaceApiValue(action.request, input));
+    }
+    const controller = new AbortController();
+    requestInit.signal = controller.signal;
+    const timeout = setTimeout(() => controller.abort(), Math.max(1000, Number(definition.timeoutMs) || 120000));
+    try {
+      const response = await fetch(requestUrl, requestInit);
+      const responseText = await response.text();
+      let responseJson;
+      try { responseJson = JSON.parse(responseText); } catch (err) { throw new Error("APIレスポンスがJSONではありません。"); }
+      if (!response.ok) throw new Error(`APIエラー: HTTP ${response.status}`);
+      return extractApiValue(responseJson, action.response);
+    } catch (err) {
+      if (err.name === "AbortError") throw new Error("API通信がタイムアウトしました。");
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  function openApiResult(item, text) {
+    state.apiResultText = text;
+    els.apiResultTitle.textContent = item.name || "API結果";
+    els.apiResultContent.textContent = text;
+    els.apiResultBackdrop.classList.add("show");
+    els.apiResultBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  function closeApiResult() {
+    els.apiResultBackdrop.classList.remove("show");
+    els.apiResultBackdrop.setAttribute("aria-hidden", "true");
+    state.apiResultText = "";
+  }
+
+  async function copyApiResult() {
+    if (!state.apiResultText) return;
+    if (await copyText(state.apiResultText)) {
+      closeApiResult();
+      showCopyTip("API結果をコピーしました");
+    } else {
+      setStatus("API結果をコピーできませんでした。", true);
+    }
   }
 
   function backupFileName() {
@@ -1114,7 +1405,7 @@ button:active {
     payload.items.forEach((item) => {
       if (!item || typeof item !== "object" || typeof item.name !== "string" || !item.name.trim() ||
           typeof item.value !== "string" || item.type !== 0 ||
-          (item.mode !== undefined && !["plain", "template", "counter"].includes(item.mode)) ||
+          (item.mode !== undefined && !["plain", "template", "counter", "api"].includes(item.mode)) ||
           (item.tags !== undefined && (!Array.isArray(item.tags) || item.tags.some((tag) => typeof tag !== "string")))) {
         throw new Error("JSONファイルの項目が正しくありません。");
       }
@@ -1306,7 +1597,7 @@ button:active {
 
       const name = document.createElement("p");
       name.className = "item-name";
-      const modePrefix = item.mode === "template" ? "[T] " : item.mode === "counter" ? "[C] " : "";
+      const modePrefix = item.mode === "template" ? "[T] " : item.mode === "counter" ? "[C] " : item.mode === "api" ? "[AI] " : "";
       name.textContent = modePrefix + (item.name || "");
 
       main.appendChild(name);
@@ -1408,6 +1699,24 @@ button:active {
   async function copyItem(index) {
     const item = state.items[index];
     if (!item) return;
+    if (item.mode === "api") {
+      setStatus("APIを実行しています…");
+      try {
+        const text = await executeApiItem(item);
+        item.usageCount = (item.usageCount || 0) + 1;
+        item.lastUsedAt = new Date().toISOString();
+        item.lastCopiedValue = text;
+        await saveState();
+        render();
+        setStatus(state.items.length + "件");
+        openApiResult(item, text);
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "API実行に失敗しました。", true);
+        alert(err.message || "API実行に失敗しました。");
+      }
+      return;
+    }
     let text;
     try {
       text = await resolveItemText(item);
@@ -1479,7 +1788,7 @@ button:active {
       .map((tag) => tag.trim())
       .filter(Boolean);
     const value = els.itemValue.value;
-    const mode = els.modeTemplate.checked ? "template" : "plain";
+    const mode = els.modeApi.checked ? "api" : (els.modeTemplate.checked ? "template" : "plain");
     const autoName = buildAutoTitle(value);
     const finalName = name || autoName;
     if (!value.trim()) {
@@ -1490,9 +1799,14 @@ button:active {
       alert("タイトルまたは本文を入力してください。");
       return;
     }
+    const options = mode === "api" ? { api: els.itemApi.value, action: els.itemAction.value } : undefined;
+    if (mode === "api" && (!options.api || !options.action)) {
+      alert("APIとActionを選択してください。API設定が未登録の場合は先にAPI設定を追加してください。");
+      return;
+    }
 
     if (state.editingIndex < 0) {
-      state.items.push(normalizeItem({ name: finalName, value, tags, type: 0, mode }));
+      state.items.push(normalizeItem({ name: finalName, value, tags, type: 0, mode, options }));
     } else {
       const previous = state.items[state.editingIndex];
       state.items[state.editingIndex] = normalizeItem({
@@ -1501,7 +1815,7 @@ button:active {
         tags,
         type: 0,
         mode,
-        options: previous.options,
+        options,
         sourceName: previous.sourceName,
         usageCount: previous.usageCount,
         lastUsedAt: previous.lastUsedAt
@@ -1521,6 +1835,12 @@ button:active {
         const db = request.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: "key" });
+        }
+        if (!db.objectStoreNames.contains(API_STORE_NAME)) {
+          db.createObjectStore(API_STORE_NAME, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(CREDENTIAL_STORE_NAME)) {
+          db.createObjectStore(CREDENTIAL_STORE_NAME, { keyPath: "credentialId" });
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -1544,13 +1864,341 @@ button:active {
     if (!record || !Array.isArray(record.items)) {
       state.items = await loadSamples();
       await saveState();
+    } else {
+      state.items = record.items.map(normalizeItem).filter((item) => item.name || item.value);
+      if (state.items.length === 0) {
+        state.items = await loadSamples();
+        await saveState();
+      }
+    }
+    await loadApiState();
+  }
+
+  async function loadApiState() {
+    const result = await new Promise((resolve, reject) => {
+      const tx = state.db.transaction([API_STORE_NAME, CREDENTIAL_STORE_NAME], "readonly");
+      const apiRequest = tx.objectStore(API_STORE_NAME).getAll();
+      const credentialRequest = tx.objectStore(CREDENTIAL_STORE_NAME).getAll();
+      tx.oncomplete = () => resolve({ definitions: apiRequest.result || [], credentials: credentialRequest.result || [] });
+      tx.onerror = () => reject(tx.error);
+    });
+    state.apiDefinitions = result.definitions;
+    state.apiCredentials = {};
+    result.credentials.forEach((credential) => {
+      state.apiCredentials[credential.credentialId] = credential;
+    });
+  }
+
+  async function saveApiState() {
+    const saved = await new Promise((resolve, reject) => {
+      const tx = state.db.transaction([API_STORE_NAME, CREDENTIAL_STORE_NAME], "readwrite");
+      const apiStore = tx.objectStore(API_STORE_NAME);
+      const credentialStore = tx.objectStore(CREDENTIAL_STORE_NAME);
+      apiStore.clear();
+      Object.values(state.apiDefinitions).forEach((definition) => apiStore.put(definition));
+      credentialStore.clear();
+      Object.values(state.apiCredentials).forEach((credential) => credentialStore.put(credential));
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    }).catch((err) => {
+      console.error(err);
+      setStatus("API設定を保存できませんでした。", true);
+      return false;
+    });
+    return saved !== false;
+  }
+
+  function validateApiDefinition(definition) {
+    if (!definition || typeof definition !== "object" || !definition.id || !definition.name ||
+        !definition.baseUrl || !definition.authType || !Array.isArray(definition.actions)) {
+      throw new Error("API設定JSONの必須項目が不足しています。");
+    }
+    if (!/^https?:\/\//i.test(definition.baseUrl)) throw new Error("APIの基本URLが正しくありません。");
+    const authTypes = ["none", "api-key-header", "api-key-query", "bearer", "basic"];
+    if (!authTypes.includes(definition.authType)) throw new Error("未対応の認証方式です。");
+    const actions = definition.actions.map((action) => {
+      if (!action || !action.id || !action.name || !action.url || !action.method || !action.response) {
+        throw new Error("API Actionの必須項目が不足しています。");
+      }
+      if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(String(action.method).toUpperCase())) {
+        throw new Error(`未対応のHTTPメソッドです: ${action.method}`);
+      }
+      if (action.request !== undefined && typeof action.request !== "object") throw new Error("Request JSONが正しくありません。");
+      if (typeof action.response !== "object") throw new Error("Response JSONが正しくありません。");
+      return Object.assign({}, action, { method: String(action.method).toUpperCase() });
+    });
+    return Object.assign({ timeoutMs: 120000, keyConfig: {} }, definition, { actions });
+  }
+
+  function renderApiList() {
+    els.apiList.innerHTML = "";
+    if (!state.apiDefinitions.length) {
+      const empty = document.createElement("div");
+      empty.className = "api-list-empty";
+      empty.textContent = "API定義がありません。新規作成またはJSONを読み込んでください。";
+      els.apiList.appendChild(empty);
       return;
     }
+    state.apiDefinitions.forEach((definition) => {
+      const row = document.createElement("div");
+      row.className = "api-list-row" + (definition.id === state.apiEditingId ? " active" : "");
+      const label = document.createElement("span");
+      const credential = definition.authType === "none" || state.apiCredentials[definition.credentialId]
+        ? "認証設定済み" : "認証情報未登録";
+      label.textContent = `${definition.name} (${definition.id})・${credential}`;
+      const actions = document.createElement("span");
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.textContent = "編集";
+      edit.addEventListener("click", () => openApiEditor(definition));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "削除";
+      remove.addEventListener("click", async () => {
+        if (!confirm(`API「${definition.name}」を削除しますか？`)) return;
+        state.apiDefinitions = state.apiDefinitions.filter((item) => item.id !== definition.id);
+        if (state.apiEditingId === definition.id) openApiEditor(null);
+        await saveApiState();
+        renderApiList();
+        updateApiItemOptions();
+      });
+      actions.append(edit, remove);
+      row.append(label, actions);
+      els.apiList.appendChild(row);
+    });
+  }
 
-    state.items = record.items.map(normalizeItem).filter((item) => item.name || item.value);
-    if (state.items.length === 0) {
-      state.items = await loadSamples();
-      await saveState();
+  function openApiSettings() {
+    closeAppMenu();
+    renderApiList();
+    openApiEditor(state.apiDefinitions[0] || null);
+    ensureApiExportButton();
+    els.apiBackdrop.classList.add("show");
+    els.apiBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  function ensureApiExportButton() {
+    if (document.getElementById("apiExportGenerated")) return;
+    const button = document.createElement("button");
+    button.id = "apiExportGenerated";
+    button.type = "button";
+    button.textContent = "JSON書出し";
+    button.addEventListener("click", () => {
+      const definition = state.apiDefinitions.find((item) => item.id === state.apiEditingId) || state.apiDefinitions[0];
+      if (!definition) {
+        alert("先にAPI定義を保存してください。");
+        return;
+      }
+      downloadJson(definition, `${definition.id}.json`);
+      showCopyTip("API定義JSONを書き出しました");
+    });
+    els.apiLoadUrl.parentElement.appendChild(button);
+  }
+
+  function closeApiSettings() {
+    els.apiBackdrop.classList.remove("show");
+    els.apiBackdrop.setAttribute("aria-hidden", "true");
+    state.apiEditingId = "";
+  }
+
+  function openApiEditor(definition) {
+    state.apiEditingId = definition ? definition.id : "";
+    els.apiJson.value = definition ? JSON.stringify(definition, null, 2) : JSON.stringify({
+      id: "example-api",
+      name: "Example API",
+      baseUrl: "https://example.com",
+      timeoutMs: 120000,
+      authType: "none",
+      keyConfig: {},
+      actions: []
+    }, null, 2);
+    const credential = definition && definition.credentialId ? state.apiCredentials[definition.credentialId] : null;
+    els.apiToken.value = "";
+    els.apiUsername.value = "";
+    els.apiPassword.value = "";
+    els.apiToken.placeholder = credential ? "登録済み（変更する場合のみ入力）" : "API token（必要な場合）";
+    els.apiUsername.placeholder = credential ? "登録済み（変更する場合のみ入力）" : "Basic認証ID（必要な場合）";
+    els.apiPassword.placeholder = credential ? "登録済み（変更する場合のみ入力）" : "Basic認証PASS（必要な場合）";
+    renderApiList();
+  }
+
+  async function saveApiEditor() {
+    let definition;
+    try {
+      definition = validateApiDefinition(JSON.parse(els.apiJson.value));
+    } catch (err) {
+      alert(err.message || "API設定JSONが正しくありません。");
+      return;
+    }
+    const duplicate = state.apiDefinitions.find((item) => item.id === definition.id && item.id !== state.apiEditingId);
+    if (duplicate && !confirm(`API ID「${definition.id}」を上書きしますか？`)) return;
+    const previous = state.apiDefinitions.find((item) => item.id === state.apiEditingId || item.id === definition.id);
+    state.apiDefinitions = state.apiDefinitions.filter((item) => item.id !== state.apiEditingId && item.id !== definition.id);
+    state.apiDefinitions.push(definition);
+    const credentialId = definition.credentialId;
+    if (credentialId && (els.apiToken.value || els.apiUsername.value || els.apiPassword.value)) {
+      const old = state.apiCredentials[credentialId] || { credentialId };
+      state.apiCredentials[credentialId] = Object.assign({}, old, {
+        credentialId,
+        token: els.apiToken.value || old.token || "",
+        username: els.apiUsername.value || old.username || "",
+        password: els.apiPassword.value || old.password || ""
+      });
+    } else if (previous && previous.credentialId && previous.credentialId !== credentialId) {
+      // 資格情報は設定変更だけでは自動削除しない。
+    }
+    if (!await saveApiState()) return;
+    state.apiEditingId = definition.id;
+    renderApiList();
+    updateApiItemOptions();
+    showCopyTip("API設定を保存しました");
+  }
+
+  function chooseApiDefinitionFile() {
+    els.apiDefinitionFileInput.click();
+  }
+
+  async function importApiDefinitionText(text, sourceName) {
+    const definition = validateApiDefinition(JSON.parse(text));
+    const existing = state.apiDefinitions.find((item) => item.id === definition.id);
+    if (existing && !confirm(`API ID「${definition.id}」を上書きしますか？`)) return;
+    state.apiDefinitions = state.apiDefinitions.filter((item) => item.id !== definition.id);
+    state.apiDefinitions.push(Object.assign({}, definition, { sourceName }));
+    await saveApiState();
+    openApiEditor(definition);
+    updateApiItemOptions();
+    showCopyTip("API定義を読み込みました");
+  }
+
+  async function loadApiDefinitionFile(file) {
+    if (!file) return;
+    try {
+      await importApiDefinitionText(await file.text(), file.name);
+    } catch (err) {
+      alert(err.message || "API定義JSONを読み込めませんでした。");
+    } finally {
+      els.apiDefinitionFileInput.value = "";
+    }
+  }
+
+  async function loadApiDefinitionUrl() {
+    const url = prompt("API設定JSONのURLを入力してください。", "https://");
+    if (!url) return;
+    try {
+      const parsed = new URL(url.trim());
+      if (parsed.protocol !== "https:") throw new Error("API設定JSONはHTTPSのURLを指定してください。");
+      const response = await fetch(parsed.href, { cache: "no-store" });
+      if (!response.ok) throw new Error(`API設定JSONの取得に失敗しました: ${response.status}`);
+      await importApiDefinitionText(await response.text(), parsed.href);
+    } catch (err) {
+      alert(`${err.message || "API設定JSONを取得できませんでした。"} CORS設定も確認してください。`);
+    }
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return btoa(binary);
+  }
+
+  function base64ToBytes(value) {
+    const binary = atob(value);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  }
+
+  async function deriveSettingsKey(password, salt, usages, iterations = 310000) {
+    const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+      material,
+      { name: "AES-GCM", length: 256 },
+      false,
+      usages
+    );
+  }
+
+  function downloadJson(payload, fileName) {
+    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function backupApiSettings() {
+    const password = prompt("設定バックアップ用のパスワードを入力してください。");
+    if (!password) return;
+    const confirmation = prompt("パスワードをもう一度入力してください。");
+    if (password !== confirmation) { alert("パスワードが一致しません。"); return; }
+    try {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveSettingsKey(password, salt, ["encrypt"]);
+      const payload = JSON.stringify({
+        apiDefinitions: state.apiDefinitions,
+        apiCredentials: Object.values(state.apiCredentials)
+      });
+      const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(payload));
+      downloadJson({
+        format: "c-send-pwa-settings",
+        version: 1,
+        createdAt: new Date().toISOString(),
+        kdf: "PBKDF2-SHA-256",
+        iterations: 310000,
+        salt: bytesToBase64(salt),
+        cipher: "AES-256-GCM",
+        iv: bytesToBase64(iv),
+        ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+      }, "c-send-pwa-settings-backup.json");
+      showCopyTip("設定バックアップを作成しました");
+    } catch (err) {
+      console.error(err);
+      alert("設定バックアップを作成できませんでした。");
+    }
+  }
+
+  function chooseSettingsRestore() {
+    els.settingsRestoreFileInput.click();
+  }
+
+  async function restoreApiSettings(file) {
+    if (!file) return;
+    try {
+      const backup = JSON.parse(await file.text());
+      if (backup.format !== "c-send-pwa-settings" || backup.version !== 1 || backup.kdf !== "PBKDF2-SHA-256" || backup.cipher !== "AES-256-GCM") {
+        throw new Error("設定バックアップの形式が正しくありません。");
+      }
+      const password = prompt("設定バックアップのパスワードを入力してください。");
+      if (!password) return;
+      const iterations = Number(backup.iterations);
+      if (!Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000) {
+        throw new Error("バックアップの暗号化設定が不正です。");
+      }
+      const key = await deriveSettingsKey(password, base64ToBytes(backup.salt), ["decrypt"], iterations);
+      const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(backup.iv) }, key, base64ToBytes(backup.ciphertext));
+      const payload = JSON.parse(new TextDecoder().decode(plaintext));
+      if (!Array.isArray(payload.apiDefinitions) || !Array.isArray(payload.apiCredentials)) throw new Error("設定バックアップの内容が正しくありません。");
+      const definitions = payload.apiDefinitions.map(validateApiDefinition);
+      if (!confirm("既存のAPI定義と認証情報を置き換えますか？")) return;
+      state.apiDefinitions = definitions;
+      state.apiCredentials = {};
+      payload.apiCredentials.forEach((credential) => {
+        if (credential && credential.credentialId) state.apiCredentials[credential.credentialId] = credential;
+      });
+      if (!await saveApiState()) throw new Error("API設定を保存できませんでした。");
+      renderApiList();
+      updateApiItemOptions();
+      showCopyTip("設定をリストアしました");
+    } catch (err) {
+      console.error(err);
+      alert(err.name === "OperationError" ? "パスワードが違うか、設定バックアップが改ざんされています。" : (err.message || "設定リストアに失敗しました。"));
+    } finally {
+      els.settingsRestoreFileInput.value = "";
     }
   }
 
@@ -1651,9 +2299,12 @@ button:active {
     els.appMenuAddUrl.addEventListener("click", addFromUrl);
     els.appMenuBackup.addEventListener("click", backupState);
     els.appMenuRestore.addEventListener("click", chooseRestoreFile);
+    els.appMenuApi.addEventListener("click", openApiSettings);
     els.appMenuCheckVersion.addEventListener("click", checkVersion);
     els.restoreFileInput.addEventListener("change", () => restoreFromFile(els.restoreFileInput.files[0]));
     els.addFileInput.addEventListener("change", () => addFiles(els.addFileInput.files));
+    els.apiDefinitionFileInput.addEventListener("change", () => loadApiDefinitionFile(els.apiDefinitionFileInput.files[0]));
+    els.settingsRestoreFileInput.addEventListener("change", () => restoreApiSettings(els.settingsRestoreFileInput.files[0]));
     ["pointerdown", "pointerup", "pointercancel", "touchstart", "touchend", "click"].forEach((eventName) => {
       els.fabAdd.addEventListener(eventName, (ev) => {
         ev.stopPropagation();
@@ -1678,6 +2329,25 @@ button:active {
     els.menuDelete.addEventListener("click", deleteCurrent);
     els.cancelEdit.addEventListener("click", closeEditor);
     els.saveEdit.addEventListener("click", saveEditor);
+    els.modePlain.addEventListener("change", updateApiItemOptions);
+    els.modeTemplate.addEventListener("change", updateApiItemOptions);
+    els.modeApi.addEventListener("change", updateApiItemOptions);
+    els.itemApi.addEventListener("change", updateActionOptions);
+    els.apiNew.addEventListener("click", () => openApiEditor(null));
+    els.apiLoadFile.addEventListener("click", chooseApiDefinitionFile);
+    els.apiLoadUrl.addEventListener("click", loadApiDefinitionUrl);
+    els.apiBackup.addEventListener("click", backupApiSettings);
+    els.apiRestore.addEventListener("click", chooseSettingsRestore);
+    els.apiClose.addEventListener("click", closeApiSettings);
+    els.apiSave.addEventListener("click", saveApiEditor);
+    els.apiBackdrop.addEventListener("click", (ev) => {
+      if (ev.target === els.apiBackdrop) closeApiSettings();
+    });
+    els.apiResultClose.addEventListener("click", closeApiResult);
+    els.apiResultCopy.addEventListener("click", copyApiResult);
+    els.apiResultBackdrop.addEventListener("click", (ev) => {
+      if (ev.target === els.apiResultBackdrop) closeApiResult();
+    });
     els.editorBackdrop.addEventListener("click", (ev) => {
       if (ev.target === els.editorBackdrop) {
         closeEditor();
@@ -1723,6 +2393,8 @@ button:active {
         closeMenu();
         closeEditor();
         closeCopyPreview();
+        closeApiSettings();
+        closeApiResult();
       }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "n") {
         ev.preventDefault();

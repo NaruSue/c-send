@@ -1,4 +1,4 @@
-const CACHE_NAME = "c-send-pwa-v1.18";
+const CACHE_NAME = "c-send-pwa-v1.19";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,6 +7,8 @@ const ASSETS = [
   "./samples.json",
   "./apple-touch-icon.png",
   "./c-send.ico"
+  ,"./api/gemini.json"
+  ,"./samples/jp/AI API.json"
 ];
 
 self.addEventListener("install", (event) => {
