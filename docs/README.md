@@ -13,6 +13,7 @@
 ## AIや外部サービスを使いたい人
 
 - [Geminiと連携してみる](api/gemini-tutorial.md): Geminiを使った要約・添削を試す
+- [Gemini API利用メモ](note-c-send-gemini-api.txt): Gemini API keyの発行からサンプル利用まで
 - [API利用者向け導入手順](api/getting-started.md): 別のAIや外部サービスを追加する
 
 ## 設定を作る人・開発者向け資料

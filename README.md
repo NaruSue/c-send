@@ -32,6 +32,8 @@ c-sendは、よく使う文章やコマンドを登録して、必要なとき�
 
 [Geminiと連携してみる](docs/api/gemini-tutorial.md)
 
+より詳しい導入手順は [Gemini API利用メモ](docs/note-c-send-gemini-api.txt) を参照してください。
+
 ## できること
 
 - 定型文、コマンド、URLなどの登録・編集・削除

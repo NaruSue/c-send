@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v1.20</title>
+<title>c-send PWA v2.0</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -310,6 +310,34 @@ button:active {
   margin: 0 0 5px;
   word-break: break-word;
 }
+.api-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  font-weight: 650;
+}
+.api-status.idle {
+  color: #28627d;
+  background: #e8f3f8;
+}
+.api-status.running {
+  color: #8a5a00;
+  background: #fff1c7;
+}
+.api-status.completed {
+  color: #18794e;
+  background: #e4f6ed;
+}
+.api-status.failed,
+.api-status.unavailable {
+  color: #a33a32;
+  background: #fde8e6;
+}
 .item-tags {
   display: flex;
   flex-wrap: wrap;
@@ -347,6 +375,15 @@ button:active {
 }
 .item-more {
   background: #eef4fa;
+}
+.api-run {
+  background: var(--brand-2);
+  color: #fff;
+  font-size: 1.2rem;
+}
+.api-run:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 .copy-fab {
   width: 42px;
@@ -571,6 +608,28 @@ button:active {
 .library-search {
   margin-bottom: 14px;
 }
+.library-root {
+  display: grid;
+  gap: 12px;
+}
+.library-root-button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fbfd;
+  color: var(--text);
+}
+.library-root-button strong {
+  font-size: 1.05rem;
+}
+.library-root-button span {
+  color: var(--muted);
+  font-size: .88rem;
+}
 .library-status {
   color: var(--muted);
   min-height: 1.4em;
@@ -605,6 +664,15 @@ button:active {
   padding: 7px 10px;
   font-size: .82rem;
 }
+.library-card-actions button.library-installed {
+  color: var(--muted);
+  background: #eef2f4;
+  cursor: default;
+}
+.library-card-actions button.library-update {
+  background: var(--brand-2);
+  color: #fff;
+}
 .mode-options {
   display: flex;
   align-items: center;
@@ -632,6 +700,17 @@ button:active {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.modal-action-status {
+  flex: 1 1 180px;
+  min-width: 0;
+  color: #18794e;
+  font-size: 0.88rem;
+}
+.modal-action-status.error {
+  color: var(--danger);
 }
 .status-line {
   padding: 0 16px 14px;
@@ -659,7 +738,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v1.20</h1>
+          <h1 class="title" id="appTitle">c-send PWA v2.0</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -729,6 +808,7 @@ button:active {
       <button class="menu-item" id="appMenuRestore" type="button">リストア</button>
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuApi" type="button">API設定</button>
+      <button class="menu-item" id="appMenuLibrary" type="button">ライブラリ</button>
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuCheckVersion" type="button">バージョンチェック</button>
     </div>
@@ -750,11 +830,24 @@ button:active {
     <div class="modal library-modal" role="dialog" aria-modal="true" aria-labelledby="libraryTitle">
       <div class="modal-head"><h2 id="libraryTitle">ライブラリ</h2></div>
       <div class="modal-body">
-        <input class="library-search" id="librarySearch" type="search" placeholder="API設定・プロンプト・テンプレートを検索" aria-label="ライブラリを検索" />
-        <div class="library-status" id="libraryStatus"></div>
-        <div class="library-list" id="libraryList"></div>
+        <div class="library-root" id="libraryRoot">
+          <button class="library-root-button" id="libraryOpenDataset" type="button">
+            <strong>データセット</strong>
+            <span>プロンプト・テンプレートを探す</span>
+          </button>
+          <button class="library-root-button" id="libraryOpenApi" type="button">
+            <strong>API設定</strong>
+            <span>API定義を追加する</span>
+          </button>
+        </div>
+        <div id="libraryContent" hidden>
+          <input class="library-search" id="librarySearch" type="search" placeholder="ライブラリを検索" aria-label="ライブラリを検索" />
+          <div class="library-status" id="libraryStatus"></div>
+          <div class="library-list" id="libraryList"></div>
+        </div>
       </div>
       <div class="modal-foot">
+        <button id="libraryBack" type="button" hidden>戻る</button>
         <button id="libraryClose" type="button">閉じる</button>
       </div>
     </div>
@@ -819,21 +912,22 @@ button:active {
           <textarea id="apiJson" spellcheck="false" placeholder="ネイティブ版と共通のAPI設定JSON"></textarea>
         </div>
         <div class="field">
-          <label for="apiToken">API token / Bearer token</label>
+          <label id="apiTokenLabel" for="apiToken">API token / Bearer token</label>
           <input id="apiToken" type="password" autocomplete="new-password" />
         </div>
         <div class="field">
-          <label for="apiUsername">Basic認証 ID</label>
+          <label id="apiUsernameLabel" for="apiUsername">Basic認証 ID</label>
           <input id="apiUsername" type="text" autocomplete="off" />
         </div>
         <div class="field">
-          <label for="apiPassword">Basic認証 PASS</label>
+          <label id="apiPasswordLabel" for="apiPassword">Basic認証 PASS</label>
           <input id="apiPassword" type="password" autocomplete="new-password" />
         </div>
         <p class="editor-hint">tokenやBasic認証情報はJSONへ保存せず、この端末のIndexedDBへ保存します。空欄で保存すると既存値を維持します。</p>
       </div>
       <div class="modal-foot">
         <button id="apiClose" type="button">閉じる</button>
+        <span class="modal-action-status" id="apiSaveStatus" role="status" aria-live="polite"></span>
         <button class="primary" id="apiSave" type="button">API設定を保存</button>
       </div>
     </div>
@@ -852,8 +946,9 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "1.20";
+  const APP_VERSION = "2.0";
   const APP_NAME = "c-send PWA";
+  const LIBRARY_CATALOG_URL = "https://narusue.github.io/c-send/library/catalog.json";
   const DB_NAME = "c-send-pwa";
   const DB_VERSION = 2;
   const STORE_NAME = "app";
@@ -879,7 +974,8 @@ button:active {
     apiEditingId: "",
     apiResultText: "",
     libraryCatalog: null,
-    libraryCatalogUrl: ""
+    libraryCatalogUrl: "",
+    libraryKind: "dataset"
   };
 
   const els = {
@@ -938,8 +1034,11 @@ button:active {
     apiBackdrop: document.getElementById("apiBackdrop"),
     apiList: document.getElementById("apiList"),
     apiJson: document.getElementById("apiJson"),
+    apiTokenLabel: document.getElementById("apiTokenLabel"),
     apiToken: document.getElementById("apiToken"),
+    apiUsernameLabel: document.getElementById("apiUsernameLabel"),
     apiUsername: document.getElementById("apiUsername"),
+    apiPasswordLabel: document.getElementById("apiPasswordLabel"),
     apiPassword: document.getElementById("apiPassword"),
     apiNew: document.getElementById("apiNew"),
     apiLoadFile: document.getElementById("apiLoadFile"),
@@ -948,15 +1047,22 @@ button:active {
     apiRestore: document.getElementById("apiRestore"),
     apiClose: document.getElementById("apiClose"),
     apiSave: document.getElementById("apiSave"),
+    apiSaveStatus: document.getElementById("apiSaveStatus"),
     apiResultBackdrop: document.getElementById("apiResultBackdrop"),
     apiResultTitle: document.getElementById("apiResultTitle"),
     apiResultContent: document.getElementById("apiResultContent"),
     apiResultClose: document.getElementById("apiResultClose"),
     apiResultCopy: document.getElementById("apiResultCopy"),
     libraryBackdrop: document.getElementById("libraryBackdrop"),
+    libraryTitle: document.getElementById("libraryTitle"),
+    libraryRoot: document.getElementById("libraryRoot"),
+    libraryContent: document.getElementById("libraryContent"),
+    libraryOpenDataset: document.getElementById("libraryOpenDataset"),
+    libraryOpenApi: document.getElementById("libraryOpenApi"),
     librarySearch: document.getElementById("librarySearch"),
     libraryStatus: document.getElementById("libraryStatus"),
     libraryList: document.getElementById("libraryList"),
+    libraryBack: document.getElementById("libraryBack"),
     libraryClose: document.getElementById("libraryClose")
   };
 
@@ -996,29 +1102,83 @@ button:active {
   }
 
   function ensureLibraryMenuButton() {
-    if (els.appMenuLibrary) return;
-    const sheet = els.appMenu.querySelector(".app-menu-sheet");
-    const button = document.createElement("button");
-    button.id = "appMenuLibrary";
-    button.className = "menu-item";
-    button.type = "button";
-    button.textContent = "ライブラリ";
-    sheet.appendChild(button);
-    els.appMenuLibrary = button;
+    els.appMenuLibrary = document.getElementById("appMenuLibrary");
   }
 
   function libraryEntries() {
     if (!state.libraryCatalog) return [];
     return [
-      ...(state.libraryCatalog.apis || []).map((item) => Object.assign({ kind: "api" }, item)),
-      ...(state.libraryCatalog.datasets || []).map((item) => Object.assign({ kind: "dataset" }, item))
+      ...(state.libraryCatalog.apis || []).map((item) => Object.assign({}, item, { kind: "api" })),
+      ...(state.libraryCatalog.datasets || []).map((item) => Object.assign({}, item, { kind: "dataset" }))
     ];
+  }
+
+  function libraryEntryUrl(entry) {
+    const url = new URL(entry.downloadUrl, state.libraryCatalogUrl);
+    // 旧カタログは日本語データセットを ja と案内していたが、Pages上の実体は jp。
+    if (url.pathname.includes("/library/datasets/ja/")) {
+      url.pathname = url.pathname.replace("/library/datasets/ja/", "/library/datasets/jp/");
+    }
+    return url.href;
+  }
+
+  function canonicalLibraryValue(value, key) {
+    if (["sourceName", "usageCount", "lastUsedAt", "type"].includes(key)) return undefined;
+    if (Array.isArray(value)) return value.map((item) => canonicalLibraryValue(item, "")).filter((item) => item !== undefined);
+    if (value && typeof value === "object") {
+      return Object.keys(value).sort().reduce((result, childKey) => {
+        const child = canonicalLibraryValue(value[childKey], childKey);
+        if (child !== undefined) result[childKey] = child;
+        return result;
+      }, {});
+    }
+    return value;
+  }
+
+  function canonicalLibraryJson(value) {
+    return JSON.stringify(canonicalLibraryValue(value, ""));
+  }
+
+  function libraryEntryIsInstalled(entry) {
+    if (entry.kind === "api") return state.apiDefinitions.some((definition) => definition.id === entry.id);
+    const url = libraryEntryUrl(entry);
+    return state.items.some((item) => item.sourceName === url);
+  }
+
+  async function libraryEntryIsCurrent(entry) {
+    const response = await fetch(libraryEntryUrl(entry), { cache: "no-store" });
+    if (!response.ok) throw new Error(`library entry fetch failed: ${response.status}`);
+    const payload = await response.json();
+    if (entry.kind === "api") {
+      const current = state.apiDefinitions.find((definition) => definition.id === entry.id);
+      return current && canonicalLibraryJson(current) === canonicalLibraryJson(validateApiDefinition(payload));
+    }
+    const imported = validatePayload(payload).items.map(normalizeItem);
+    const current = state.items.filter((item) => item.sourceName === libraryEntryUrl(entry)).map(normalizeItem);
+    return canonicalLibraryJson(current) === canonicalLibraryJson(imported);
+  }
+
+  async function updateLibraryButton(entry, button) {
+    button.textContent = "確認中…";
+    try {
+      const current = await libraryEntryIsCurrent(entry);
+      button.disabled = current;
+      button.classList.toggle("library-installed", current);
+      button.classList.toggle("library-update", !current);
+      button.textContent = current ? "インストール済み" : "更新";
+    } catch (err) {
+      console.warn("library status check failed", err);
+      button.disabled = false;
+      button.textContent = "更新確認";
+    }
   }
 
   function renderLibrary() {
     const query = String(els.librarySearch.value || "").trim().toLocaleLowerCase();
     els.libraryList.innerHTML = "";
-    const entries = libraryEntries().filter((entry) => JSON.stringify(entry).toLocaleLowerCase().includes(query));
+    const entries = libraryEntries()
+      .filter((entry) => entry.kind === state.libraryKind)
+      .filter((entry) => JSON.stringify(entry).toLocaleLowerCase().includes(query));
     if (!entries.length) {
       const empty = document.createElement("p");
       empty.textContent = "該当するライブラリがありません。";
@@ -1049,7 +1209,7 @@ button:active {
         const actions = document.createElement("div");
         actions.className = "library-card-actions";
         const download = document.createElement("a");
-        download.href = new URL(entry.downloadUrl, state.libraryCatalogUrl).href;
+        download.href = libraryEntryUrl(entry);
         download.target = "_blank";
         download.rel = "noreferrer";
         download.textContent = "JSONを開く";
@@ -1060,18 +1220,38 @@ button:active {
         actions.append(download, install);
         card.append(name, meta, dependency, actions);
         els.libraryList.appendChild(card);
+        if (libraryEntryIsInstalled(entry)) updateLibraryButton(entry, install);
       });
     });
   }
 
-  async function openLibrary() {
+  function openLibrary() {
+    state.libraryKind = null;
+    state.libraryCatalog = null;
+    els.libraryTitle.textContent = "ライブラリ";
+    els.libraryRoot.hidden = false;
+    els.libraryContent.hidden = true;
+    els.libraryBack.hidden = true;
+    els.libraryStatus.textContent = "";
+    els.libraryList.innerHTML = "";
+    els.librarySearch.value = "";
     closeAppMenu();
+    els.libraryBackdrop.classList.add("show");
+    els.libraryBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  async function openLibraryCategory(kind) {
+    state.libraryKind = kind;
+    els.libraryTitle.textContent = kind === "api" ? "API設定ライブラリ" : "ライブラリ";
+    els.libraryRoot.hidden = true;
+    els.libraryContent.hidden = false;
+    els.libraryBack.hidden = false;
     els.libraryBackdrop.classList.add("show");
     els.libraryBackdrop.setAttribute("aria-hidden", "false");
     els.libraryStatus.textContent = "ライブラリを読み込んでいます…";
     els.libraryList.innerHTML = "";
     try {
-      const catalogUrl = new URL("library/catalog.json", window.location.href);
+      const catalogUrl = new URL(LIBRARY_CATALOG_URL);
       const response = await fetch(catalogUrl.href, { cache: "no-store" });
       if (!response.ok) throw new Error(`カタログ取得に失敗しました: ${response.status}`);
       const catalog = await response.json();
@@ -1096,7 +1276,7 @@ button:active {
 
   async function installLibraryEntry(entry) {
     try {
-      const url = new URL(entry.downloadUrl, state.libraryCatalogUrl).href;
+      const url = libraryEntryUrl(entry);
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) throw new Error(`JSON取得に失敗しました: ${response.status}`);
       if (entry.kind === "api") {
@@ -1107,6 +1287,7 @@ button:active {
         state.apiDefinitions.push(definition);
         if (!await saveApiState()) throw new Error("API設定を保存できませんでした。");
         updateApiItemOptions();
+        renderLibrary();
         showCopyTip(`API「${definition.name}」を追加しました`);
         return;
       }
@@ -1121,6 +1302,7 @@ button:active {
       const result = mergeImportedItems(imported);
       if (!await saveState()) throw new Error("データセットを保存できませんでした。");
       render();
+      renderLibrary();
       showCopyTip(`${result.added}件のデータセットを追加しました`);
     } catch (err) {
       console.error(err);
@@ -1261,6 +1443,10 @@ button:active {
       mode,
       options: item && item.options && typeof item.options === "object" ? item.options : undefined,
       sourceName: item && item.sourceName ? String(item.sourceName) : undefined,
+      apiState: ["idle", "running", "completed", "failed", "unavailable"].includes(item && item.apiState)
+        ? item.apiState : "idle",
+      apiError: String(item && item.apiError ? item.apiError : ""),
+      apiExecutedAt: String(item && item.apiExecutedAt ? item.apiExecutedAt : ""),
       usageCount: Math.max(0, Number(item && item.usageCount) || 0),
       lastUsedAt: String(item && item.lastUsedAt ? item.lastUsedAt : "")
     });
@@ -1395,8 +1581,8 @@ button:active {
     return String(result);
   }
 
-  async function evaluateTemplate(source) {
-    let clipboard = null;
+  async function evaluateTemplate(source, clipboardValue) {
+    let clipboard = clipboardValue === undefined ? null : clipboardValue;
     const getClipboard = async () => {
       if (clipboard === null) clipboard = await readClipboardText();
       return clipboard;
@@ -1451,8 +1637,10 @@ button:active {
     return parts.join("");
   }
 
-  async function resolveItemText(item) {
-    return item.mode === "template" || item.mode === "api" ? await evaluateTemplate(item.value || "") : (item.value || "");
+  async function resolveItemText(item, clipboardValue) {
+    return item.mode === "template" || item.mode === "api"
+      ? await evaluateTemplate(item.value || "", clipboardValue)
+      : (item.value || "");
   }
 
   function replaceApiValue(value, input) {
@@ -1491,14 +1679,14 @@ button:active {
     return `${String(baseUrl).replace(/\/$/, "")}/${String(actionUrl).replace(/^\//, "")}`;
   }
 
-  async function executeApiItem(item) {
+  async function executeApiItem(item, clipboardValue) {
     const options = item.options || {};
     const definition = state.apiDefinitions.find((candidate) => candidate.id === options.api);
     const action = definition && definition.actions.find((candidate) => candidate.id === options.action);
     if (!definition || !action) throw new Error("APIまたはActionの定義が見つかりません。API設定を確認してください。");
     const credential = definition.credentialId ? state.apiCredentials[definition.credentialId] : null;
     if (definition.authType !== "none" && !credential) throw new Error("API認証情報が未登録です。API設定を開いて登録してください。");
-    const input = await resolveItemText(item);
+    const input = await resolveItemText(item, clipboardValue);
     let requestUrl = joinApiUrl(definition.baseUrl, action.url);
     const headers = {};
     const keyConfig = definition.keyConfig || {};
@@ -1770,6 +1958,33 @@ button:active {
     });
   }
 
+  function apiCredentialReady(definition) {
+    if (!definition || definition.authType === "none") return true;
+    const credential = definition.credentialId ? state.apiCredentials[definition.credentialId] : null;
+    if (!credential) return false;
+    if (["api-key-header", "api-key-query", "bearer"].includes(definition.authType)) {
+      return Boolean(credential.token);
+    }
+    if (definition.authType === "basic") {
+      return Boolean(credential.username && credential.password);
+    }
+    return false;
+  }
+
+  function getApiItemStatus(item) {
+    if (!item || item.mode !== "api") return null;
+    const options = item.options || {};
+    const definition = state.apiDefinitions.find((candidate) => candidate.id === options.api);
+    const action = definition && definition.actions.find((candidate) => candidate.id === options.action);
+    if (!definition || !action || !apiCredentialReady(definition)) {
+      return { key: "unavailable", icon: "⚠", label: "設定不足" };
+    }
+    if (item.apiState === "running") return { key: "running", icon: "⏳", label: "実行中" };
+    if (item.apiState === "completed") return { key: "completed", icon: "✓", label: "完了" };
+    if (item.apiState === "failed") return { key: "failed", icon: "!", label: "失敗" };
+    return { key: "idle", icon: "▶", label: "実行可能" };
+  }
+
   function render() {
     els.list.innerHTML = "";
     updateSearchClearVisibility();
@@ -1791,10 +2006,19 @@ button:active {
 
       const name = document.createElement("p");
       name.className = "item-name";
-      const modePrefix = item.mode === "template" ? "[T] " : item.mode === "counter" ? "[C] " : item.mode === "api" ? "[AI] " : "";
+      const modePrefix = item.mode === "template" ? "[T] " : item.mode === "counter" ? "[C] " : item.mode === "api" ? "[A] " : "";
       name.textContent = modePrefix + (item.name || "");
 
       main.appendChild(name);
+
+      if (item.mode === "api") {
+        const status = getApiItemStatus(item);
+        const statusBadge = document.createElement("span");
+        statusBadge.className = `api-status ${status.key}`;
+        statusBadge.textContent = `${status.icon} ${status.label}`;
+        statusBadge.title = item.apiError || status.label;
+        main.insertBefore(statusBadge, name);
+      }
 
       if ((item.tags || []).length) {
         const tagWrap = document.createElement("div");
@@ -1811,6 +2035,22 @@ button:active {
       const actions = document.createElement("div");
       actions.className = "item-actions";
 
+      if (item.mode === "api") {
+        const status = getApiItemStatus(item);
+        const runBtn = document.createElement("button");
+        runBtn.type = "button";
+        runBtn.className = "icon-btn api-run";
+        runBtn.setAttribute("aria-label", status.key === "running" ? "API実行中" : "APIを実行");
+        runBtn.title = status.key === "running" ? "API実行中" : "APIを実行";
+        runBtn.textContent = status.key === "running" ? "…" : "▶";
+        runBtn.disabled = status.key === "running" || status.key === "unavailable";
+        runBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          copyItem(index);
+        });
+        actions.appendChild(runBtn);
+      }
+
       const moreBtn = document.createElement("button");
       moreBtn.type = "button";
       moreBtn.className = "icon-btn item-more";
@@ -1826,7 +2066,9 @@ button:active {
       row.appendChild(main);
       row.appendChild(actions);
 
-      row.addEventListener("click", () => copyItem(index));
+      row.addEventListener("click", () => {
+        if (item.mode !== "api") copyItem(index);
+      });
       row.addEventListener("contextmenu", (ev) => {
         ev.preventDefault();
         openMenu(index, ev.clientX, ev.clientY);
@@ -1894,9 +2136,36 @@ button:active {
     const item = state.items[index];
     if (!item) return;
     if (item.mode === "api") {
+      const status = getApiItemStatus(item);
+      if (status.key === "running") return;
+      if (status.key === "unavailable") {
+        item.apiState = "unavailable";
+        item.apiError = "API設定、Action、または認証情報を確認してください。";
+        render();
+        setStatus(item.apiError, true);
+        return;
+      }
+      let clipboardValue;
+      if (String(item.value || "").includes("{{clipboard")) {
+        try {
+          clipboardValue = await readClipboardText();
+        } catch (err) {
+          item.apiState = "failed";
+          item.apiError = "クリップボードを読み取れません。実行前にクリップボードへのアクセスを許可してください。";
+          render();
+          setStatus(item.apiError, true);
+          alert(item.apiError);
+          return;
+        }
+      }
+      item.apiState = "running";
+      item.apiError = "";
+      render();
       setStatus("APIを実行しています…");
       try {
-        const text = await executeApiItem(item);
+        const text = await executeApiItem(item, clipboardValue);
+        item.apiState = "completed";
+        item.apiExecutedAt = new Date().toISOString();
         item.usageCount = (item.usageCount || 0) + 1;
         item.lastUsedAt = new Date().toISOString();
         item.lastCopiedValue = text;
@@ -1906,6 +2175,11 @@ button:active {
         openApiResult(item, text);
       } catch (err) {
         console.error(err);
+        item.apiState = "failed";
+        item.apiError = err.message || "API実行に失敗しました。";
+        item.apiExecutedAt = new Date().toISOString();
+        await saveState();
+        render();
         setStatus(err.message || "API実行に失敗しました。", true);
         alert(err.message || "API実行に失敗しました。");
       }
@@ -2165,11 +2439,48 @@ button:active {
 
   function openApiSettings() {
     closeAppMenu();
+    prioritizeApiCredentialFields();
     renderApiList();
     openApiEditor(state.apiDefinitions[0] || null);
     ensureApiExportButton();
     els.apiBackdrop.classList.add("show");
     els.apiBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  function prioritizeApiCredentialFields() {
+    const jsonField = els.apiJson.closest(".field");
+    const credentialFields = [els.apiToken, els.apiUsername, els.apiPassword]
+      .map((input) => input.closest(".field"));
+    if (!jsonField || credentialFields.some((field) => !field)) return;
+    credentialFields.forEach((field) => jsonField.parentElement.insertBefore(field, jsonField));
+  }
+
+  function updateApiCredentialFields(definition) {
+    let current = definition;
+    if (!current) {
+      try {
+        current = JSON.parse(els.apiJson.value);
+      } catch (_) {
+        current = null;
+      }
+    }
+    const authType = current && current.authType ? current.authType : "none";
+    const keyConfig = current && current.keyConfig && typeof current.keyConfig === "object"
+      ? current.keyConfig : {};
+    const tokenVisible = ["api-key-header", "api-key-query", "bearer"].includes(authType);
+    const basicVisible = authType === "basic";
+    els.apiToken.closest(".field").hidden = !tokenVisible;
+    els.apiUsername.closest(".field").hidden = !basicVisible;
+    els.apiPassword.closest(".field").hidden = !basicVisible;
+    if (authType === "api-key-header") {
+      els.apiTokenLabel.textContent = `APIキー（ヘッダー: ${keyConfig.headerName || "指定なし"}）`;
+    } else if (authType === "api-key-query") {
+      els.apiTokenLabel.textContent = `APIキー（クエリ: ${keyConfig.queryName || "指定なし"}）`;
+    } else if (authType === "bearer") {
+      els.apiTokenLabel.textContent = "Bearer token";
+    }
+    els.apiUsernameLabel.textContent = "Basic認証 ID";
+    els.apiPasswordLabel.textContent = "Basic認証 PASS";
   }
 
   function ensureApiExportButton() {
@@ -2214,14 +2525,19 @@ button:active {
     els.apiToken.placeholder = credential ? "登録済み（変更する場合のみ入力）" : "API token（必要な場合）";
     els.apiUsername.placeholder = credential ? "登録済み（変更する場合のみ入力）" : "Basic認証ID（必要な場合）";
     els.apiPassword.placeholder = credential ? "登録済み（変更する場合のみ入力）" : "Basic認証PASS（必要な場合）";
+    updateApiCredentialFields(definition);
     renderApiList();
   }
 
   async function saveApiEditor() {
+    els.apiSaveStatus.textContent = "";
+    els.apiSaveStatus.className = "modal-action-status";
     let definition;
     try {
       definition = validateApiDefinition(JSON.parse(els.apiJson.value));
     } catch (err) {
+      els.apiSaveStatus.textContent = err.message || "API設定を確認してください。";
+      els.apiSaveStatus.className = "modal-action-status error";
       alert(err.message || "API設定JSONが正しくありません。");
       return;
     }
@@ -2231,21 +2547,28 @@ button:active {
     state.apiDefinitions = state.apiDefinitions.filter((item) => item.id !== state.apiEditingId && item.id !== definition.id);
     state.apiDefinitions.push(definition);
     const credentialId = definition.credentialId;
-    if (credentialId && (els.apiToken.value || els.apiUsername.value || els.apiPassword.value)) {
+    const tokenAuth = ["api-key-header", "api-key-query", "bearer"].includes(definition.authType);
+    const basicAuth = definition.authType === "basic";
+    if (credentialId && ((tokenAuth && els.apiToken.value) || (basicAuth && (els.apiUsername.value || els.apiPassword.value)))) {
       const old = state.apiCredentials[credentialId] || { credentialId };
       state.apiCredentials[credentialId] = Object.assign({}, old, {
         credentialId,
-        token: els.apiToken.value || old.token || "",
-        username: els.apiUsername.value || old.username || "",
-        password: els.apiPassword.value || old.password || ""
+        token: tokenAuth ? (els.apiToken.value || old.token || "") : (old.token || ""),
+        username: basicAuth ? (els.apiUsername.value || old.username || "") : (old.username || ""),
+        password: basicAuth ? (els.apiPassword.value || old.password || "") : (old.password || "")
       });
     } else if (previous && previous.credentialId && previous.credentialId !== credentialId) {
       // 資格情報は設定変更だけでは自動削除しない。
     }
-    if (!await saveApiState()) return;
+    if (!await saveApiState()) {
+      els.apiSaveStatus.textContent = "保存できませんでした。";
+      els.apiSaveStatus.className = "modal-action-status error";
+      return;
+    }
     state.apiEditingId = definition.id;
     renderApiList();
     updateApiItemOptions();
+    els.apiSaveStatus.textContent = "保存しました";
     showCopyTip("API設定を保存しました");
   }
 
@@ -2496,6 +2819,8 @@ button:active {
     els.appMenuRestore.addEventListener("click", chooseRestoreFile);
     els.appMenuApi.addEventListener("click", openApiSettings);
     els.appMenuLibrary.addEventListener("click", openLibrary);
+    els.libraryOpenDataset.addEventListener("click", () => openLibraryCategory("dataset"));
+    els.libraryOpenApi.addEventListener("click", () => openLibraryCategory("api"));
     els.appMenuCheckVersion.addEventListener("click", checkVersion);
     els.restoreFileInput.addEventListener("change", () => restoreFromFile(els.restoreFileInput.files[0]));
     els.addFileInput.addEventListener("change", () => addFiles(els.addFileInput.files));
@@ -2530,6 +2855,7 @@ button:active {
     els.modeApi.addEventListener("change", updateApiItemOptions);
     els.itemApi.addEventListener("change", updateActionOptions);
     els.apiNew.addEventListener("click", () => openApiEditor(null));
+    els.apiJson.addEventListener("input", () => updateApiCredentialFields());
     els.apiLoadFile.addEventListener("click", chooseApiDefinitionFile);
     els.apiLoadUrl.addEventListener("click", loadApiDefinitionUrl);
     els.apiBackup.addEventListener("click", backupApiSettings);
@@ -2543,6 +2869,7 @@ button:active {
     els.apiResultCopy.addEventListener("click", copyApiResult);
     els.libraryClose.addEventListener("click", closeLibrary);
     els.librarySearch.addEventListener("input", renderLibrary);
+    els.libraryBack.addEventListener("click", openLibrary);
     els.libraryBackdrop.addEventListener("click", (ev) => {
       if (ev.target === els.libraryBackdrop) closeLibrary();
     });

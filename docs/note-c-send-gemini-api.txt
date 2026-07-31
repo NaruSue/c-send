@@ -1,0 +1,118 @@
+c-sendでGemini APIを使ってみる
+
+c-send v2.0.0では、GoogleのGemini APIと連携できます。
+
+クリップボードにコピーした文章をGeminiへ送信して、要約や添削の結果を取得できます。
+
+## 1. c-sendをダウンロードする
+
+まず、GitHubのリリースページから最新版をダウンロードします。
+
+https://github.com/NaruSue/c-send/releases
+
+v2.0.0のAssetsからZIPファイルをダウンロードし、任意のフォルダーへ展開してください。
+
+展開したフォルダーには、次のようなファイルが含まれています。
+
+csend.exe
+api\
+docs\
+samples\
+
+apiフォルダーとsamplesフォルダーは、csend.exeと同じ場所に置いてください。
+
+その後、csend.exeを起動します。
+
+## 2. Gemini APIキーを発行する
+
+Geminiを利用するには、Google AI StudioでAPIキーを発行します。
+
+次のページを開いて、Googleアカウントでログインしてください。
+
+Google AI Studio API Keys
+https://aistudio.google.com/apikey
+
+画面にある「Create API key」などのボタンからAPIキーを作成し、表示されたキーをコピーします。
+
+初めて利用する場合は、Google AI Studio側でプロジェクトや利用規約の確認が必要になる場合があります。
+
+APIキーは作成時に表示される重要な情報です。ほかの人へ送ったり、GitHubやチャットへ貼り付けたりしないでください。
+
+## 3. c-sendへAPIキーを登録する
+
+APIキーを取得したら、c-sendへ登録します。
+
+1. csend.exeを起動します。
+2. システムメニューから「API」を開きます。
+3. API一覧から「Gemini」を選びます。
+4. 「詳細」を開きます。
+5. 「API token」欄へ、Google AI Studioで取得したAPIキーを貼り付けます。
+6. 「保存」を押します。
+
+c-sendは、登録したAPIキーをapi\gemini.jsonへ保存しません。
+
+APIキーはWindows Credential Managerへ保存されます。設定JSONには、認証情報を参照するためのIDだけが保存されます。
+
+## 4. Gemini APIのサンプルカテゴリを追加する
+
+次に、Geminiを呼び出すためのサンプルカテゴリを追加します。
+
+1. システムメニューからカテゴリ設定を開きます。
+2. 一覧の末尾にある「（追加）」を選びます。
+3. カテゴリ名に「Gemini API」と入力します。
+4. データファイルのパスに次を入力します。
+
+samples\jp\Gemini API.json
+
+5. 保存します。
+
+samples\jp\Gemini API.jsonは、c-send v2.0.0に同梱されています。
+
+## 5. Geminiで文章を要約する
+
+設定が完了したら、実際に使ってみます。
+
+1. メモ帳などで短い文章をコピーします。
+2. c-sendの「Gemini API」カテゴリを開きます。
+3. 「クリップボードを要約」を選びます。
+4. Geminiの応答を待ちます。
+
+成功すると、Geminiが生成した要約結果が表示され、結果をクリップボードへコピーできます。
+
+## 6. Geminiで文章を添削する
+
+文章の添削も同じ手順で実行できます。
+
+1. 添削したい文章をコピーします。
+2. 「Gemini API」カテゴリを開きます。
+3. 「文章を添削」を選びます。
+4. Geminiの結果を確認します。
+
+最初は、個人情報や機密情報を含まない短い文章で試してください。
+
+## うまく動かない場合
+
+GeminiがAPI一覧に表示されない場合は、csend.exeと同じ場所に次のファイルがあるか確認してください。
+
+api\gemini.json
+
+APIキーのエラーが表示される場合は、Google AI Studioでキーが有効か確認し、c-sendの「Gemini」詳細画面からAPIキーを保存し直してください。
+
+カテゴリが表示されない場合は、データファイルのパスが次の場所になっているか確認してください。
+
+samples\jp\Gemini API.json
+
+また、APIの利用回数や上限、料金については、Google AI StudioのUsage・Billing画面を確認してください。
+
+## API設定を自分で追加する
+
+c-send v2.0.0では、Gemini以外にもOpenAI、Anthropic Claude、GitHub、Open-MeteoなどのAPI設定サンプルを同梱しています。
+
+API設定はJSONファイルで管理されており、APIのURL、認証方式、リクエスト、レスポンスの取り出し位置を指定できます。
+
+詳しい仕様は、配布ファイル内の次のドキュメントを参照してください。
+
+docs\api\config-spec.md
+docs\api\getting-started.md
+
+なお、ChatGPT OAuth接続用の設定サンプルもありますが、こちらは非公式の実験的な機能です。まずは、公式APIとして利用できるGemini API接続をお試しください。
