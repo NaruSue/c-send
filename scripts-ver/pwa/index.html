@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v1.19</title>
+<title>c-send PWA v1.20</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -565,6 +565,46 @@ button:active {
   padding: 7px 9px;
   border-radius: 10px;
 }
+.library-modal {
+  width: min(760px, calc(100vw - 24px));
+}
+.library-search {
+  margin-bottom: 14px;
+}
+.library-status {
+  color: var(--muted);
+  min-height: 1.4em;
+  margin-bottom: 10px;
+}
+.library-list {
+  display: grid;
+  gap: 10px;
+  max-height: min(56vh, 520px);
+  overflow: auto;
+}
+.library-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+}
+.library-card h3 {
+  margin: 0 0 5px;
+}
+.library-card p {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: .88rem;
+}
+.library-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+.library-card-actions button {
+  padding: 7px 10px;
+  font-size: .82rem;
+}
 .mode-options {
   display: flex;
   align-items: center;
@@ -619,7 +659,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v1.19</h1>
+          <h1 class="title" id="appTitle">c-send PWA v1.20</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -703,6 +743,20 @@ button:active {
     <div class="menu-sheet" id="menuSheet" role="menu">
       <button class="menu-item" id="menuEdit" type="button">編集</button>
       <button class="menu-item delete" id="menuDelete" type="button">削除</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="libraryBackdrop" aria-hidden="true">
+    <div class="modal library-modal" role="dialog" aria-modal="true" aria-labelledby="libraryTitle">
+      <div class="modal-head"><h2 id="libraryTitle">ライブラリ</h2></div>
+      <div class="modal-body">
+        <input class="library-search" id="librarySearch" type="search" placeholder="API設定・プロンプト・テンプレートを検索" aria-label="ライブラリを検索" />
+        <div class="library-status" id="libraryStatus"></div>
+        <div class="library-list" id="libraryList"></div>
+      </div>
+      <div class="modal-foot">
+        <button id="libraryClose" type="button">閉じる</button>
+      </div>
     </div>
   </div>
 
@@ -798,7 +852,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "1.19";
+  const APP_VERSION = "1.20";
   const APP_NAME = "c-send PWA";
   const DB_NAME = "c-send-pwa";
   const DB_VERSION = 2;
@@ -823,7 +877,9 @@ button:active {
     apiDefinitions: [],
     apiCredentials: {},
     apiEditingId: "",
-    apiResultText: ""
+    apiResultText: "",
+    libraryCatalog: null,
+    libraryCatalogUrl: ""
   };
 
   const els = {
@@ -896,7 +952,12 @@ button:active {
     apiResultTitle: document.getElementById("apiResultTitle"),
     apiResultContent: document.getElementById("apiResultContent"),
     apiResultClose: document.getElementById("apiResultClose"),
-    apiResultCopy: document.getElementById("apiResultCopy")
+    apiResultCopy: document.getElementById("apiResultCopy"),
+    libraryBackdrop: document.getElementById("libraryBackdrop"),
+    librarySearch: document.getElementById("librarySearch"),
+    libraryStatus: document.getElementById("libraryStatus"),
+    libraryList: document.getElementById("libraryList"),
+    libraryClose: document.getElementById("libraryClose")
   };
 
   function setStatus(text, isError) {
@@ -932,6 +993,139 @@ button:active {
     els.appMenu.classList.remove("show");
     els.appMenu.setAttribute("aria-hidden", "true");
     els.helpTrigger.setAttribute("aria-expanded", "false");
+  }
+
+  function ensureLibraryMenuButton() {
+    if (els.appMenuLibrary) return;
+    const sheet = els.appMenu.querySelector(".app-menu-sheet");
+    const button = document.createElement("button");
+    button.id = "appMenuLibrary";
+    button.className = "menu-item";
+    button.type = "button";
+    button.textContent = "ライブラリ";
+    sheet.appendChild(button);
+    els.appMenuLibrary = button;
+  }
+
+  function libraryEntries() {
+    if (!state.libraryCatalog) return [];
+    return [
+      ...(state.libraryCatalog.apis || []).map((item) => Object.assign({ kind: "api" }, item)),
+      ...(state.libraryCatalog.datasets || []).map((item) => Object.assign({ kind: "dataset" }, item))
+    ];
+  }
+
+  function renderLibrary() {
+    const query = String(els.librarySearch.value || "").trim().toLocaleLowerCase();
+    els.libraryList.innerHTML = "";
+    const entries = libraryEntries().filter((entry) => JSON.stringify(entry).toLocaleLowerCase().includes(query));
+    if (!entries.length) {
+      const empty = document.createElement("p");
+      empty.textContent = "該当するライブラリがありません。";
+      els.libraryList.appendChild(empty);
+      return;
+    }
+    const groups = [
+      ["API設定", entries.filter((entry) => entry.kind === "api")],
+      ["データセット", entries.filter((entry) => entry.kind === "dataset")]
+    ];
+    groups.forEach(([title, group]) => {
+      if (!group.length) return;
+      const heading = document.createElement("h3");
+      heading.textContent = title;
+      els.libraryList.appendChild(heading);
+      group.forEach((entry) => {
+        const card = document.createElement("article");
+        card.className = "library-card";
+        const name = document.createElement("h3");
+        name.textContent = entry.name || entry.id;
+        const meta = document.createElement("p");
+        meta.textContent = entry.kind === "api"
+          ? `${entry.authType || "none"} / Action ${entry.actionCount || 0}件`
+          : `${entry.language || ""} / ${entry.datasetType || "dataset"} / ${entry.itemCount || 0}件`;
+        const dependency = document.createElement("p");
+        dependency.textContent = entry.requiredApis && entry.requiredApis.length
+          ? `依存API: ${entry.requiredApis.join(", ")}` : "依存APIなし";
+        const actions = document.createElement("div");
+        actions.className = "library-card-actions";
+        const download = document.createElement("a");
+        download.href = new URL(entry.downloadUrl, state.libraryCatalogUrl).href;
+        download.target = "_blank";
+        download.rel = "noreferrer";
+        download.textContent = "JSONを開く";
+        const install = document.createElement("button");
+        install.type = "button";
+        install.textContent = "インストール";
+        install.addEventListener("click", () => installLibraryEntry(entry));
+        actions.append(download, install);
+        card.append(name, meta, dependency, actions);
+        els.libraryList.appendChild(card);
+      });
+    });
+  }
+
+  async function openLibrary() {
+    closeAppMenu();
+    els.libraryBackdrop.classList.add("show");
+    els.libraryBackdrop.setAttribute("aria-hidden", "false");
+    els.libraryStatus.textContent = "ライブラリを読み込んでいます…";
+    els.libraryList.innerHTML = "";
+    try {
+      const catalogUrl = new URL("library/catalog.json", window.location.href);
+      const response = await fetch(catalogUrl.href, { cache: "no-store" });
+      if (!response.ok) throw new Error(`カタログ取得に失敗しました: ${response.status}`);
+      const catalog = await response.json();
+      if (catalog.format !== "c-send-library-catalog" || catalog.version !== 1 ||
+          !Array.isArray(catalog.apis) || !Array.isArray(catalog.datasets)) {
+        throw new Error("ライブラリカタログの形式が正しくありません。");
+      }
+      state.libraryCatalog = catalog;
+      state.libraryCatalogUrl = catalogUrl.href;
+      els.libraryStatus.textContent = `${catalog.apis.length}件のAPI設定、${catalog.datasets.length}件のデータセット`;
+      renderLibrary();
+    } catch (err) {
+      state.libraryCatalog = null;
+      els.libraryStatus.textContent = err.message || "ライブラリを読み込めませんでした。";
+    }
+  }
+
+  function closeLibrary() {
+    els.libraryBackdrop.classList.remove("show");
+    els.libraryBackdrop.setAttribute("aria-hidden", "true");
+  }
+
+  async function installLibraryEntry(entry) {
+    try {
+      const url = new URL(entry.downloadUrl, state.libraryCatalogUrl).href;
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`JSON取得に失敗しました: ${response.status}`);
+      if (entry.kind === "api") {
+        const definition = validateApiDefinition(await response.json());
+        const duplicate = state.apiDefinitions.find((item) => item.id === definition.id);
+        if (duplicate && !confirm(`API「${definition.name}」を更新しますか？`)) return;
+        state.apiDefinitions = state.apiDefinitions.filter((item) => item.id !== definition.id);
+        state.apiDefinitions.push(definition);
+        if (!await saveApiState()) throw new Error("API設定を保存できませんでした。");
+        updateApiItemOptions();
+        showCopyTip(`API「${definition.name}」を追加しました`);
+        return;
+      }
+      const payload = validatePayload(await response.json());
+      const missing = (entry.requiredApis || []).filter((id) => !state.apiDefinitions.some((api) => api.id === id));
+      if (missing.length && !confirm(`依存API（${missing.join(", ")}）が未登録です。このままデータセットを追加しますか？`)) return;
+      const imported = payload.items.map((item) => {
+        const normalized = normalizeItem(item);
+        normalized.sourceName = url;
+        return normalized;
+      });
+      const result = mergeImportedItems(imported);
+      if (!await saveState()) throw new Error("データセットを保存できませんでした。");
+      render();
+      showCopyTip(`${result.added}件のデータセットを追加しました`);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "ライブラリのインストールに失敗しました。");
+    }
   }
 
   function updateInstallVisibility() {
@@ -2286,6 +2480,7 @@ button:active {
   }
 
   function bindEvents() {
+    ensureLibraryMenuButton();
     els.installTrigger.addEventListener("click", openInstallPopover);
     els.helpTrigger.addEventListener("click", openAppMenu);
     els.installCloseButton.addEventListener("click", closeInstallPopover);
@@ -2300,6 +2495,7 @@ button:active {
     els.appMenuBackup.addEventListener("click", backupState);
     els.appMenuRestore.addEventListener("click", chooseRestoreFile);
     els.appMenuApi.addEventListener("click", openApiSettings);
+    els.appMenuLibrary.addEventListener("click", openLibrary);
     els.appMenuCheckVersion.addEventListener("click", checkVersion);
     els.restoreFileInput.addEventListener("change", () => restoreFromFile(els.restoreFileInput.files[0]));
     els.addFileInput.addEventListener("change", () => addFiles(els.addFileInput.files));
@@ -2345,6 +2541,11 @@ button:active {
     });
     els.apiResultClose.addEventListener("click", closeApiResult);
     els.apiResultCopy.addEventListener("click", copyApiResult);
+    els.libraryClose.addEventListener("click", closeLibrary);
+    els.librarySearch.addEventListener("input", renderLibrary);
+    els.libraryBackdrop.addEventListener("click", (ev) => {
+      if (ev.target === els.libraryBackdrop) closeLibrary();
+    });
     els.apiResultBackdrop.addEventListener("click", (ev) => {
       if (ev.target === els.apiResultBackdrop) closeApiResult();
     });
@@ -2395,6 +2596,7 @@ button:active {
         closeCopyPreview();
         closeApiSettings();
         closeApiResult();
+        closeLibrary();
       }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "n") {
         ev.preventDefault();

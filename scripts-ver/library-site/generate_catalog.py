@@ -12,7 +12,7 @@ def read_json(path: Path):
         return json.load(stream)
 
 
-def dataset_entry(path: Path, payload: dict, language: str) -> dict:
+def dataset_entry(path: Path, payload: dict, language: str, directory_name: str) -> dict:
     items = payload.get("items", [])
     api_ids = sorted({item.get("options", {}).get("api") for item in items if item.get("options", {}).get("api")})
     has_clipboard = any("{{clipboard}}" in str(item.get("value", "")) for item in items)
@@ -25,7 +25,7 @@ def dataset_entry(path: Path, payload: dict, language: str) -> dict:
         "inputMode": "clipboard" if has_clipboard else "fixed",
         "itemCount": len(items),
         "requiredApis": api_ids,
-        "downloadUrl": f"./datasets/{language}/{quote(path.name)}",
+        "downloadUrl": f"./datasets/{directory_name}/{quote(path.name)}",
     }
 
 
@@ -47,9 +47,10 @@ def main() -> None:
             "downloadUrl": f"./api/{quote(path.name)}",
         })
     datasets = []
-    for language, directory in (("ja", root / "samples" / "jp"), ("en", root / "samples" / "en")):
+    for language, directory_name in (("ja", "jp"), ("en", "en")):
+        directory = root / "samples" / directory_name
         for path in sorted(directory.glob("*.json")):
-            datasets.append(dataset_entry(path, read_json(path), language))
+            datasets.append(dataset_entry(path, read_json(path), language, directory_name))
     output.mkdir(parents=True, exist_ok=True)
     catalog = {
         "format": "c-send-library-catalog",
