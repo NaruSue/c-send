@@ -4,7 +4,7 @@ Release/
 x64/
 .tmp/
 .build.env
-docs/pwa-development-test.local.md
+docs.local/
 __pycache__/
 AGENTS.md
 csend.aps
