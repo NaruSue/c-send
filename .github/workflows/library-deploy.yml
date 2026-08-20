@@ -1,0 +1,59 @@
+name: Deploy c-send library
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit to deploy
+        required: false
+        default: master
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare PWA and library site
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^[[:space:]]*const APP_VERSION = "\(.*\)";/\1/p' scripts-ver/pwa/index.html)"
+          test -n "$version"
+          rm -rf _site
+          cp -R scripts-ver/pwa _site
+          mkdir -p _site/library/api _site/library/datasets/jp _site/library/datasets/en
+          cp scripts-ver/library-site/index.html _site/library/index.html
+          python scripts-ver/library-site/generate_catalog.py --output _site/library
+          cp api/*.json _site/library/api/
+          cp samples/jp/*.json _site/library/datasets/jp/
+          cp samples/en/*.json _site/library/datasets/en/
+          sed -i "s/__PWA_VERSION__/$version/g" _site/service-worker.js
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
