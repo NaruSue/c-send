@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v2.3</title>
+<title>c-send PWA v2.4</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -760,7 +760,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v2.3</h1>
+          <h1 class="title" id="appTitle">c-send PWA v2.4</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -969,7 +969,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "2.3";
+  const APP_VERSION = "2.4";
   const APP_NAME = "c-send PWA";
   const LIBRARY_CATALOG_URL = "https://narusue.github.io/c-send-library/catalog.json";
   const DB_NAME = "c-send-pwa";
@@ -978,6 +978,7 @@ button:active {
   const STATE_KEY = "state";
   const API_STORE_NAME = "apiDefinitions";
   const CREDENTIAL_STORE_NAME = "apiCredentials";
+  const TAG_SEARCH_HISTORY_KEY = "c-send-pwa-tag-search-history";
 
   const state = {
     items: [],
@@ -992,6 +993,7 @@ button:active {
     deferredInstallPrompt: null,
     searchText: "",
     activeTag: "",
+    tagSearchHistory: [],
     apiDefinitions: [],
     apiCredentials: {},
     apiEditingId: "",
@@ -2000,7 +2002,12 @@ button:active {
         tagStats.set(tag, (tagStats.get(tag) || 0) + 1);
       });
     });
-    const tags = Array.from(tagStats.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja"));
+    const tags = Array.from(tagStats.entries()).sort((a, b) => {
+      const aIndex = state.tagSearchHistory.indexOf(a[0]);
+      const bIndex = state.tagSearchHistory.indexOf(b[0]);
+      if (aIndex !== bIndex) return bIndex - aIndex;
+      return b[1] - a[1] || a[0].localeCompare(b[0], "ja");
+    });
     els.tagFilter.innerHTML = "";
     els.tagFilter.hidden = tags.length === 0;
     tags.forEach(([tagText, count]) => {
@@ -2009,6 +2016,15 @@ button:active {
       button.textContent = `${tagText} ${count}`;
       button.className = state.activeTag === tagText ? "active" : "";
       button.addEventListener("click", () => {
+        if (state.activeTag !== tagText) {
+          state.tagSearchHistory = state.tagSearchHistory.filter((tag) => tag !== tagText);
+          state.tagSearchHistory.push(tagText);
+          try {
+            localStorage.setItem(TAG_SEARCH_HISTORY_KEY, JSON.stringify(state.tagSearchHistory));
+          } catch (err) {
+            console.warn("tag search history save failed", err);
+          }
+        }
         state.activeTag = state.activeTag === tagText ? "" : tagText;
         render();
       });
@@ -3004,6 +3020,12 @@ button:active {
     updateInstallVisibility();
     bindEvents();
     registerServiceWorker();
+    try {
+      const savedTagHistory = JSON.parse(localStorage.getItem(TAG_SEARCH_HISTORY_KEY) || "[]");
+      if (Array.isArray(savedTagHistory)) state.tagSearchHistory = savedTagHistory.filter((tag) => typeof tag === "string");
+    } catch (err) {
+      console.warn("tag search history load failed", err);
+    }
     try {
       await loadState();
       render();
