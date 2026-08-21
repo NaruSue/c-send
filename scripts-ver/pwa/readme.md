@@ -84,6 +84,13 @@ GitHubの公開カタログを使う場合は、メニューの `URLから追加
 - [日本語サンプル一覧（GitHub）](https://github.com/NaruSue/c-send/tree/master/samples/jp)
 - [英語サンプル一覧（GitHub）](https://github.com/NaruSue/c-send/tree/master/samples/en)
 
+### ライブラリ
+
+メニューの`ライブラリ`から、独立公開されたAPI設定・データセットを検索できます。ライブラリ画面では、検索欄とタグチップを組み合わせて絞り込み、JSONを開くかPWAへインストールできます。
+
+- [c-sendライブラリ](https://narusue.github.io/c-send-library/)
+- カタログ: `https://narusue.github.io/c-send-library/catalog.json`
+
 #### 日本語サンプル
 
 | サンプル | Raw URL |
@@ -162,7 +169,7 @@ GitHub Pagesへのデプロイ後、公開URLからアプリを開けます。
 - `manifest.webmanifest`
 - `apple-touch-icon.png`
 
-PWAはService Workerによってファイルをキャッシュします。更新後はメニュー最下部の `バージョンチェック` を選択してください。新版が見つかった場合は、確認後にキャッシュを更新して再起動できます。バージョンチェックを使わない場合は、公開URLをSafariで開いてからアプリを閉じて開き直してください。
+PWAはService Workerによってファイルをキャッシュします。更新後はメニュー最下部の `バージョンチェック` を選択してください。新版が見つかった場合は、確認後にキャッシュを更新して再起動できます。今回のタグ絞り込み対応はPWA v2.3です。
 
 ## 制約
 
