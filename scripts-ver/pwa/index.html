@@ -268,6 +268,28 @@ button:active {
   background: var(--brand);
   color: #fff;
 }
+.library-tags {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 8px 0 2px;
+  scrollbar-width: none;
+}
+.library-tags::-webkit-scrollbar { display: none; }
+.library-tags button {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: #eef4fa;
+  color: var(--brand);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.library-tags button.active {
+  background: var(--brand);
+  color: #fff;
+}
 .editor-hint {
   margin: -4px 0 12px;
   color: var(--muted);
@@ -842,6 +864,7 @@ button:active {
         </div>
         <div id="libraryContent" hidden>
           <input class="library-search" id="librarySearch" type="search" placeholder="ライブラリを検索" aria-label="ライブラリを検索" />
+          <div class="library-tags" id="libraryTags" aria-label="ライブラリをタグで絞り込み"></div>
           <div class="library-status" id="libraryStatus"></div>
           <div class="library-list" id="libraryList"></div>
         </div>
@@ -975,7 +998,8 @@ button:active {
     apiResultText: "",
     libraryCatalog: null,
     libraryCatalogUrl: "",
-    libraryKind: "dataset"
+    libraryKind: "dataset",
+    libraryActiveTag: ""
   };
 
   const els = {
@@ -1060,6 +1084,7 @@ button:active {
     libraryOpenDataset: document.getElementById("libraryOpenDataset"),
     libraryOpenApi: document.getElementById("libraryOpenApi"),
     librarySearch: document.getElementById("librarySearch"),
+    libraryTags: document.getElementById("libraryTags"),
     libraryStatus: document.getElementById("libraryStatus"),
     libraryList: document.getElementById("libraryList"),
     libraryBack: document.getElementById("libraryBack"),
@@ -1173,11 +1198,40 @@ button:active {
     }
   }
 
+  function renderLibraryTags() {
+    const counts = new Map();
+    libraryEntries()
+      .filter((entry) => entry.kind === state.libraryKind)
+      .forEach((entry) => (entry.tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1)));
+    els.libraryTags.innerHTML = "";
+    const all = document.createElement("button");
+    all.type = "button";
+    all.textContent = "すべて";
+    all.className = state.libraryActiveTag ? "" : "active";
+    all.addEventListener("click", () => { state.libraryActiveTag = ""; renderLibraryTags(); renderLibrary(); });
+    els.libraryTags.appendChild(all);
+    Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja"))
+      .forEach(([tag, count]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `${tag} ${count}`;
+        button.className = state.libraryActiveTag === tag ? "active" : "";
+        button.addEventListener("click", () => {
+          state.libraryActiveTag = state.libraryActiveTag === tag ? "" : tag;
+          renderLibraryTags();
+          renderLibrary();
+        });
+        els.libraryTags.appendChild(button);
+      });
+  }
+
   function renderLibrary() {
     const query = String(els.librarySearch.value || "").trim().toLocaleLowerCase();
     els.libraryList.innerHTML = "";
     const entries = libraryEntries()
       .filter((entry) => entry.kind === state.libraryKind)
+      .filter((entry) => !state.libraryActiveTag || (entry.tags || []).includes(state.libraryActiveTag))
       .filter((entry) => JSON.stringify(entry).toLocaleLowerCase().includes(query));
     if (!entries.length) {
       const empty = document.createElement("p");
@@ -1235,6 +1289,8 @@ button:active {
     els.libraryStatus.textContent = "";
     els.libraryList.innerHTML = "";
     els.librarySearch.value = "";
+    state.libraryActiveTag = "";
+    els.libraryTags.innerHTML = "";
     closeAppMenu();
     els.libraryBackdrop.classList.add("show");
     els.libraryBackdrop.setAttribute("aria-hidden", "false");
@@ -1250,6 +1306,7 @@ button:active {
     els.libraryBackdrop.setAttribute("aria-hidden", "false");
     els.libraryStatus.textContent = "ライブラリを読み込んでいます…";
     els.libraryList.innerHTML = "";
+    state.libraryActiveTag = "";
     try {
       const catalogUrl = new URL(LIBRARY_CATALOG_URL);
       const response = await fetch(catalogUrl.href, { cache: "no-store" });
@@ -1262,6 +1319,7 @@ button:active {
       state.libraryCatalog = catalog;
       state.libraryCatalogUrl = catalogUrl.href;
       els.libraryStatus.textContent = `${catalog.apis.length}件のAPI設定、${catalog.datasets.length}件のデータセット`;
+      renderLibraryTags();
       renderLibrary();
     } catch (err) {
       state.libraryCatalog = null;
