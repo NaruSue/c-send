@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v2.5</title>
+<title>c-send PWA v2.6</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -159,24 +159,40 @@ button:active {
   gap: 8px;
 }
 .reference-row {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 14px;
 }
 .reference-url {
-  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
-  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: nowrap;
   font-size: 0.88rem;
 }
+.reference-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
 .reference-status {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   color: var(--muted);
   font-size: 0.78rem;
 }
+.reference-details {
+  margin: 0;
+  padding: 0 0 0 22px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.reference-details li + li { margin-top: 5px; }
 .reference-row button { flex: 0 0 auto; }
 .install-trigger {
   width: 42px;
@@ -818,7 +834,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v2.5</h1>
+          <h1 class="title" id="appTitle">c-send PWA v2.6</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -1054,7 +1070,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "2.5";
+  const APP_VERSION = "2.6";
   const APP_NAME = "c-send PWA";
   const LIBRARY_CATALOG_URL = "https://narusue.github.io/c-send-library/catalog.json";
   const DB_NAME = "c-send-pwa";
@@ -1470,20 +1486,53 @@ button:active {
     state.referencedUrls.forEach((entry) => {
       const row = document.createElement("div");
       row.className = "reference-row";
-      const url = document.createElement("span");
+      const url = document.createElement("input");
       url.className = "reference-url";
-      url.textContent = entry.url;
+      url.type = "url";
+      url.readOnly = true;
+      url.value = entry.url;
+      url.setAttribute("aria-label", "参照URL");
+      const items = state.items.filter((item) => item.referenceUrl === entry.url);
       const status = document.createElement("span");
       status.className = "reference-status";
       status.textContent = entry.lastError
-        ? "取得失敗"
-        : (entry.lastCheckedAt ? `確認 ${new Date(entry.lastCheckedAt).toLocaleString()}` : "確認待ち");
+        ? `取得失敗（最終更新 ${entry.lastCheckedAt ? new Date(entry.lastCheckedAt).toLocaleString() : "なし"}）`
+        : (entry.lastCheckedAt ? `更新 ${new Date(entry.lastCheckedAt).toLocaleString()}` : "更新待ち");
+      const meta = document.createElement("div");
+      meta.className = "reference-meta";
+      const count = document.createElement("span");
+      count.textContent = `${items.length}件`;
+      const details = document.createElement("button");
+      details.type = "button";
+      details.textContent = entry.detailsOpen ? "詳細を閉じる" : "詳細";
+      details.setAttribute("aria-expanded", String(Boolean(entry.detailsOpen)));
+      details.addEventListener("click", () => {
+        entry.detailsOpen = !entry.detailsOpen;
+        renderReferencedUrls();
+      });
       const remove = document.createElement("button");
       remove.type = "button";
       remove.textContent = "削除";
       remove.setAttribute("aria-label", `参照URLを削除: ${entry.url}`);
       remove.addEventListener("click", () => removeReferencedUrl(entry.url));
-      row.append(url, status, remove);
+      meta.append(count, status, details, remove);
+      row.append(url, meta);
+      if (entry.detailsOpen) {
+        const titleList = document.createElement("ul");
+        titleList.className = "reference-details";
+        if (items.length) {
+          items.forEach((item) => {
+            const title = document.createElement("li");
+            title.textContent = item.name || "（タイトルなし）";
+            titleList.appendChild(title);
+          });
+        } else {
+          const empty = document.createElement("li");
+          empty.textContent = "この参照URLの項目はありません。";
+          titleList.appendChild(empty);
+        }
+        row.appendChild(titleList);
+      }
       els.referenceList.appendChild(row);
     });
   }
