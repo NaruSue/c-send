@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v2.8</title>
+<title>c-send PWA v2.9</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -193,6 +193,11 @@ button:active {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 12px;
+}
+.reference-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 .reference-status {
   flex: 1 1 auto;
@@ -863,7 +868,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v2.8</h1>
+          <h1 class="title" id="appTitle">c-send PWA v2.9</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -1005,6 +1010,7 @@ button:active {
         <p class="editor-hint" id="urlDialogStatus" role="status" aria-live="polite"></p>
         <div class="field" id="referenceListField" hidden>
           <label>参照中のURL</label>
+          <div class="reference-toolbar"><button id="refreshAllReferences" type="button">すべて更新</button></div>
           <p class="editor-hint" id="referenceEmpty">URLはまだ登録されていません。下の欄から追加できます。</p>
           <div class="reference-list" id="referenceList"></div>
         </div>
@@ -1110,7 +1116,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "2.8";
+  const APP_VERSION = "2.9";
   const APP_NAME = "c-send PWA";
   const LIBRARY_CATALOG_URL = "https://narusue.github.io/c-send-library/catalog.json";
   const DB_NAME = "c-send-pwa";
@@ -1151,6 +1157,8 @@ button:active {
     newsUpdated: false,
     lastImportUrl: "",
     referencedUrls: [],
+    refreshingReferences: false,
+    lastPeriodicRefreshAt: 0,
     urlDialogMode: "add"
   };
 
@@ -1189,6 +1197,7 @@ button:active {
     referenceListField: document.getElementById("referenceListField"),
     referenceEmpty: document.getElementById("referenceEmpty"),
     referenceList: document.getElementById("referenceList"),
+    refreshAllReferences: document.getElementById("refreshAllReferences"),
     restoreFileInput: document.getElementById("restoreFileInput"),
     addFileInput: document.getElementById("addFileInput"),
     apiDefinitionFileInput: document.getElementById("apiDefinitionFileInput"),
@@ -1646,12 +1655,18 @@ button:active {
         entry.detailsOpen = !entry.detailsOpen;
         renderReferencedUrls();
       });
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.textContent = "更新";
+      refresh.disabled = state.refreshingReferences;
+      refresh.setAttribute("aria-label", `参照URLを更新: ${entry.url}`);
+      refresh.addEventListener("click", () => refreshReferencedUrls(entry.url));
       const remove = document.createElement("button");
       remove.type = "button";
       remove.textContent = "削除";
       remove.setAttribute("aria-label", `参照URLを削除: ${entry.url}`);
       remove.addEventListener("click", () => removeReferencedUrl(entry.url));
-      meta.append(count, status, details, remove);
+      meta.append(count, status, refresh, details, remove);
       row.append(url, meta);
       if (entry.detailsOpen) {
         const titleList = document.createElement("ul");
@@ -1793,33 +1808,71 @@ button:active {
     renderReferencedUrls();
   }
 
-  async function refreshReferencedUrls() {
-    for (const entry of [...state.referencedUrls]) {
-      try {
-        entry.lastError = "";
-        const imported = await fetchCommonJson(entry.url);
-        const before = state.items.map((item) => Object.assign({}, item));
-        const result = replaceReferencedItems(entry.url, imported);
-        entry.lastCheckedAt = new Date().toISOString();
+  async function refreshReferencedUrls(targetUrl = "") {
+    if (state.refreshingReferences) return;
+    const entries = [...state.referencedUrls].filter((entry) => !targetUrl || entry.url === targetUrl);
+    if (!entries.length) return;
+    state.refreshingReferences = true;
+    els.refreshAllReferences.disabled = true;
+    renderReferencedUrls();
+    let total = { added: 0, updated: 0, removed: 0 };
+    let failures = 0;
+    try {
+      for (const entry of entries) {
         try {
-          if (!await saveState()) throw new Error("データを保存できませんでした。");
-          await saveUrlSettings();
-          renderReferencedUrls();
-          if (result.added || result.updated || result.removed) {
-            render();
-            setStatus(`参照URLを更新しました（${result.added}件追加、${result.updated}件更新、${result.removed}件削除）`);
+          const imported = await fetchCommonJson(entry.url);
+          const before = state.items.map((item) => Object.assign({}, item));
+          const previousEntry = Object.assign({}, entry);
+          const result = replaceReferencedItems(entry.url, imported);
+          entry.lastCheckedAt = new Date().toISOString();
+          entry.lastError = "";
+          try {
+            if (!await saveState()) throw new Error("データを保存できませんでした。");
+            await saveUrlSettings();
+            total.added += result.added;
+            total.updated += result.updated;
+            total.removed += result.removed;
+            renderReferencedUrls();
+            if (result.added || result.updated || result.removed) render();
+          } catch (err) {
+            state.items = before;
+            Object.assign(entry, previousEntry);
+            throw err;
           }
         } catch (err) {
-          state.items = before;
-          throw err;
+          failures += 1;
+          entry.lastError = err.message || "取得に失敗しました";
+          await saveUrlSettings().catch((saveError) => console.warn("URL settings save failed", saveError));
+          renderReferencedUrls();
+          console.warn(`referenced URL refresh failed: ${entry.url}`, err);
         }
-      } catch (err) {
-        entry.lastError = err.message || "取得に失敗しました";
-        await saveUrlSettings().catch((saveError) => console.warn("URL settings save failed", saveError));
-        renderReferencedUrls();
-        console.warn(`referenced URL refresh failed: ${entry.url}`, err);
       }
+    } finally {
+      state.refreshingReferences = false;
+      renderReferencedUrls();
+      els.refreshAllReferences.disabled = false;
     }
+    if (total.added || total.updated || total.removed) {
+      setStatus(`参照URLを更新しました（${total.added}件追加、${total.updated}件更新、${total.removed}件削除）`);
+    } else if (failures) {
+      setStatus(`参照URL ${failures}件の更新に失敗しました。前回のデータを維持しています。`, true);
+    } else {
+      setStatus("参照URLは最新です");
+    }
+  }
+
+  async function runPeriodicRefresh() {
+    if (Date.now() - state.lastPeriodicRefreshAt < 10 * 60 * 1000) return;
+    state.lastPeriodicRefreshAt = Date.now();
+    await Promise.allSettled([refreshReferencedUrls(), checkNewsOnStartup()]);
+  }
+
+  function startPeriodicRefresh() {
+    state.lastPeriodicRefreshAt = Date.now();
+    window.setInterval(runPeriodicRefresh, 60 * 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") runPeriodicRefresh();
+    });
   }
 
   function replaceReferencedItems(url, imported) {
@@ -3419,6 +3472,7 @@ button:active {
     els.urlDialogClose.addEventListener("click", closeUrlDialog);
     els.urlDialogSubmit.addEventListener("click", submitUrlDialog);
     els.urlReferenceAction.addEventListener("click", () => openUrlDialog("reference"));
+    els.refreshAllReferences.addEventListener("click", () => refreshReferencedUrls());
     els.urlInput.addEventListener("input", updateUrlClearButton);
     els.urlInputClear.addEventListener("click", () => {
       els.urlInput.value = "";
@@ -3575,6 +3629,7 @@ button:active {
       render();
       setStatus(state.items.length + "件");
       refreshReferencedUrls();
+      startPeriodicRefresh();
     } catch (err) {
       console.error(err);
       try {
