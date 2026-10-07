@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1f5f8b" />
+  <title>c-send PWA リリース情報</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif; color: #1c2731; background: #f5f8fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 20px 16px 28px; }
+    header, main { width: min(720px, 100%); margin: 0 auto; }
+    header { padding: 4px 2px 16px; }
+    h1 { margin: 0 0 8px; color: #1f5f8b; font-size: 1.35rem; }
+    header p { margin: 0; color: #62717e; line-height: 1.6; }
+    article { margin: 0 0 12px; padding: 16px; border: 1px solid #d8e1ea; border-radius: 16px; background: #fff; box-shadow: 0 4px 12px rgba(25, 40, 55, 0.04); }
+    article h2 { margin: 0 0 5px; font-size: 1rem; }
+    .release-meta { margin: 0 0 10px; color: #687887; font-size: 0.82rem; }
+    article p:last-child { margin: 0; line-height: 1.65; }
+    ul { margin: 8px 0 0; padding-left: 1.3em; line-height: 1.65; }
+    @media (min-width: 600px) { body { padding: 26px 24px 32px; } article { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>c-send PWA リリース情報</h1>
+    <p>新しい機能や変更点をお知らせします。内容が更新されると、アプリのメニューアイコン左側に青いバッジが表示されます。</p>
+  </header>
+  <main data-news-content>
+    <article>
+      <h2>リリース情報をアプリ内で確認</h2>
+      <p class="release-meta">v2.8 ・ 2026年10月8日</p>
+      <p>メニューに「リリース情報」を追加しました。このページをアプリから開いて、c-send PWAの機能や更新内容を確認できます。</p>
+    </article>
+    <article>
+      <h2>更新バッジの表示を修正</h2>
+      <p class="release-meta">v2.7 ・ 2026年10月8日</p>
+      <p>新しいアプリバージョンがあることを知らせる赤いバッジが、メニューアイコンに隠れず表示されるようにしました。</p>
+    </article>
+    <article>
+      <h2>参照URLを一覧で管理</h2>
+      <p class="release-meta">v2.6 ・ 2026年10月8日</p>
+      <p>「URLを参照」画面で、参照元ごとのURL、項目数、最終更新日時を確認できます。「詳細」をタップすると、参照中のタイトル一覧が開きます。長いURLは入力欄を横にスクロールして確認できます。参照URLを削除しても、取り込み済みの項目は端末内に残ります。</p>
+    </article>
+    <article>
+      <h2>URLの取り込み方法を選べるように</h2>
+      <p class="release-meta">v2.5 ・ 2026年10月8日</p>
+      <ul>
+        <li><strong>URLから追加</strong>は、その時点の内容を取り込むスナップショットです。参照元が後で更新されても、端末内の項目は変わりません。URL入力欄の×で入力を消去できます。</li>
+        <li><strong>URLを参照</strong>は、自動更新したいURLを登録する方法です。起動時に非同期で確認し、そのURL由来の項目を最新データに置き換えます。別のURLや手入力の項目には影響しません。</li>
+        <li>起動時に新しいアプリ版が見つかった場合は、メニューアイコン右側に赤いバッジを表示します。</li>
+      </ul>
+    </article>
+  </main>
+</body>
+</html>

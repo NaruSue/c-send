@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v2.7</title>
+<title>c-send PWA v2.8</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -132,6 +132,18 @@ button:active {
   border: 2px solid #fff;
   border-radius: 50%;
   background: #d93025;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.help-trigger.news-updated::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #2f86be;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 .input-clear-wrap {
@@ -659,6 +671,22 @@ button:active {
 .api-modal {
   width: min(720px, calc(100vw - 24px));
 }
+.news-modal {
+  width: min(760px, calc(100vw - 24px));
+  height: min(86vh, 780px);
+}
+.news-modal-body {
+  padding: 0;
+  overflow: hidden;
+}
+.news-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  border: 0;
+  background: #f5f8fa;
+}
 .api-modal #apiJson {
   min-height: 260px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -835,7 +863,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v2.7</h1>
+          <h1 class="title" id="appTitle">c-send PWA v2.8</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -897,6 +925,7 @@ button:active {
     <div class="menu-backdrop" id="appMenuBackdrop"></div>
     <div class="menu-sheet app-menu-sheet" role="menu" aria-label="c-sendメニュー">
       <button class="menu-item" id="appMenuHelp" type="button">使い方</button>
+      <button class="menu-item" id="appMenuNews" type="button">リリース情報</button>
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuAddFile" type="button">ファイルから追加</button>
       <button class="menu-item" id="appMenuAddUrl" type="button">URLから追加</button>
@@ -949,6 +978,16 @@ button:active {
         <button id="libraryBack" type="button" hidden>戻る</button>
         <button id="libraryClose" type="button">閉じる</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="newsBackdrop" aria-hidden="true">
+    <div class="modal news-modal" role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+      <div class="modal-head"><h2 id="newsTitle">リリース情報</h2></div>
+      <div class="modal-body news-modal-body">
+        <iframe class="news-frame" id="newsFrame" title="c-send PWAのリリース情報" loading="lazy"></iframe>
+      </div>
+      <div class="modal-foot"><button id="newsClose" type="button">閉じる</button></div>
     </div>
   </div>
 
@@ -1071,7 +1110,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "2.7";
+  const APP_VERSION = "2.8";
   const APP_NAME = "c-send PWA";
   const LIBRARY_CATALOG_URL = "https://narusue.github.io/c-send-library/catalog.json";
   const DB_NAME = "c-send-pwa";
@@ -1081,6 +1120,8 @@ button:active {
   const API_STORE_NAME = "apiDefinitions";
   const CREDENTIAL_STORE_NAME = "apiCredentials";
   const TAG_SEARCH_HISTORY_KEY = "c-send-pwa-tag-search-history";
+  const NEWS_SEEN_FINGERPRINT_KEY = "c-send-pwa-news-seen-fingerprint";
+  const NEWS_UNREAD_FINGERPRINT_KEY = "c-send-pwa-news-unread-fingerprint";
   const URL_SETTINGS_KEY = "urlSettings";
 
   const state = {
@@ -1106,6 +1147,8 @@ button:active {
     libraryKind: "dataset",
     libraryActiveTag: "",
     latestAppVersion: "",
+    latestNewsFingerprint: "",
+    newsUpdated: false,
     lastImportUrl: "",
     referencedUrls: [],
     urlDialogMode: "add"
@@ -1127,6 +1170,7 @@ button:active {
     appMenu: document.getElementById("appMenu"),
     appMenuBackdrop: document.getElementById("appMenuBackdrop"),
     appMenuHelp: document.getElementById("appMenuHelp"),
+    appMenuNews: document.getElementById("appMenuNews"),
     appMenuAddFile: document.getElementById("appMenuAddFile"),
     appMenuAddUrl: document.getElementById("appMenuAddUrl"),
     appMenuReferenceUrl: document.getElementById("appMenuReferenceUrl"),
@@ -1199,6 +1243,9 @@ button:active {
     apiResultClose: document.getElementById("apiResultClose"),
     apiResultCopy: document.getElementById("apiResultCopy"),
     libraryBackdrop: document.getElementById("libraryBackdrop"),
+    newsBackdrop: document.getElementById("newsBackdrop"),
+    newsFrame: document.getElementById("newsFrame"),
+    newsClose: document.getElementById("newsClose"),
     libraryTitle: document.getElementById("libraryTitle"),
     libraryRoot: document.getElementById("libraryRoot"),
     libraryContent: document.getElementById("libraryContent"),
@@ -1245,6 +1292,94 @@ button:active {
     els.appMenu.classList.remove("show");
     els.appMenu.setAttribute("aria-hidden", "true");
     els.helpTrigger.setAttribute("aria-expanded", "false");
+  }
+
+  function openNews() {
+    closeAppMenu();
+    const newsUrl = new URL("news.html", window.location.href);
+    if (state.latestNewsFingerprint) newsUrl.searchParams.set("show", state.latestNewsFingerprint);
+    els.newsFrame.src = newsUrl.href;
+    els.newsBackdrop.classList.add("show");
+    els.newsBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  function closeNews() {
+    els.newsBackdrop.classList.remove("show");
+    els.newsBackdrop.setAttribute("aria-hidden", "true");
+  }
+
+  function updateMenuNoticeBadges() {
+    const updateAvailable = Boolean(state.latestAppVersion) && compareVersions(state.latestAppVersion, APP_VERSION) > 0;
+    els.helpTrigger.classList.toggle("update-available", updateAvailable);
+    els.helpTrigger.classList.toggle("news-updated", state.newsUpdated);
+    const notices = [];
+    if (updateAvailable) notices.push(`v${state.latestAppVersion}に更新できます`);
+    if (state.newsUpdated) notices.push("新着のリリース情報があります");
+    els.helpTrigger.setAttribute("aria-label", notices.length
+      ? `c-sendメニューを開く（${notices.join("、")}）`
+      : "c-sendメニューを開く");
+  }
+
+  function fingerprintNewsText(text) {
+    const normalized = String(text || "").replace(/\s+/g, " ").trim();
+    let hash = 2166136261;
+    for (let index = 0; index < normalized.length; index += 1) {
+      hash ^= normalized.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `${normalized.length}-${(hash >>> 0).toString(16)}`;
+  }
+
+  function newsTextFromHtml(html) {
+    const newsDocument = new DOMParser().parseFromString(html, "text/html");
+    const content = newsDocument.querySelector("[data-news-content]");
+    if (!content) throw new Error("リリース情報を読み取れませんでした。");
+    return content.textContent || "";
+  }
+
+  function readNewsStorage(key) {
+    try {
+      return localStorage.getItem(key) || "";
+    } catch (err) {
+      console.warn("release information state could not be read", err);
+      return "";
+    }
+  }
+
+  async function checkNewsOnStartup() {
+    const pending = readNewsStorage(NEWS_UNREAD_FINGERPRINT_KEY);
+    state.latestNewsFingerprint = pending;
+    state.newsUpdated = Boolean(pending);
+    updateMenuNoticeBadges();
+    try {
+      const newsUrl = new URL("news.html", window.location.href);
+      newsUrl.searchParams.set("newsCheck", String(Date.now()));
+      const response = await fetch(newsUrl.href, { cache: "no-store" });
+      if (!response.ok) throw new Error(`リリース情報の確認に失敗しました: ${response.status}`);
+      const fingerprint = fingerprintNewsText(newsTextFromHtml(await response.text()));
+      const seen = readNewsStorage(NEWS_SEEN_FINGERPRINT_KEY);
+      state.latestNewsFingerprint = fingerprint;
+      state.newsUpdated = fingerprint !== seen;
+      if (state.newsUpdated) localStorage.setItem(NEWS_UNREAD_FINGERPRINT_KEY, fingerprint);
+      else localStorage.removeItem(NEWS_UNREAD_FINGERPRINT_KEY);
+      updateMenuNoticeBadges();
+    } catch (err) {
+      console.warn("release information check failed", err);
+    }
+  }
+
+  function markNewsAsRead() {
+    try {
+      const content = els.newsFrame.contentDocument && els.newsFrame.contentDocument.querySelector("[data-news-content]");
+      if (!content || !state.latestNewsFingerprint ||
+          fingerprintNewsText(content.textContent || "") !== state.latestNewsFingerprint) return;
+      localStorage.setItem(NEWS_SEEN_FINGERPRINT_KEY, state.latestNewsFingerprint);
+      localStorage.removeItem(NEWS_UNREAD_FINGERPRINT_KEY);
+      state.newsUpdated = false;
+      updateMenuNoticeBadges();
+    } catch (err) {
+      console.warn("release information read state save failed", err);
+    }
   }
 
   function ensureLibraryMenuButton() {
@@ -3198,10 +3333,7 @@ button:active {
   function setUpdateAvailable(version) {
     state.latestAppVersion = version || "";
     const available = Boolean(version) && compareVersions(version, APP_VERSION) > 0;
-    els.helpTrigger.classList.toggle("update-available", available);
-    els.helpTrigger.setAttribute("aria-label", available
-      ? `c-sendメニューを開く（v${version}に更新できます）`
-      : "c-sendメニューを開く");
+    updateMenuNoticeBadges();
     els.appMenuCheckVersion.textContent = available
       ? `バージョンチェック（v${version}に更新できます）`
       : "バージョンチェック";
@@ -3274,6 +3406,12 @@ button:active {
     els.appMenuHelp.addEventListener("click", (ev) => {
       ev.stopPropagation();
       openHelpPopover();
+    });
+    els.appMenuNews.addEventListener("click", openNews);
+    els.newsClose.addEventListener("click", closeNews);
+    els.newsFrame.addEventListener("load", markNewsAsRead);
+    els.newsBackdrop.addEventListener("click", (ev) => {
+      if (ev.target === els.newsBackdrop) closeNews();
     });
     els.appMenuAddFile.addEventListener("click", chooseAddFile);
     els.appMenuAddUrl.addEventListener("click", () => openUrlDialog("add"));
@@ -3400,6 +3538,7 @@ button:active {
         closeApiSettings();
         closeApiResult();
         closeLibrary();
+        closeNews();
         closeUrlDialog();
       }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "n") {
@@ -3423,6 +3562,7 @@ button:active {
     bindEvents();
     registerServiceWorker();
     checkLatestVersionOnStartup();
+    checkNewsOnStartup();
     try {
       const savedTagHistory = JSON.parse(localStorage.getItem(TAG_SEARCH_HISTORY_KEY) || "[]");
       if (Array.isArray(savedTagHistory)) state.tagSearchHistory = savedTagHistory.filter((tag) => typeof tag === "string");

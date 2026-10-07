@@ -1,9 +1,10 @@
-const CACHE_NAME = "c-send-pwa-v2.7";
+const CACHE_NAME = "c-send-pwa-v2.8";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./service-worker.js",
+  "./news.html",
   "./samples.json",
   "./apple-touch-icon.png",
   "./c-send.ico"
@@ -33,6 +34,18 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.pathname.endsWith("/news.html") && requestUrl.searchParams.has("newsCheck")) {
+    event.respondWith(fetch(event.request, { cache: "no-store" }));
+    return;
+  }
+  if (requestUrl.pathname.endsWith("/news.html") && requestUrl.searchParams.has("show")) {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" }).catch(() => caches.match(new URL("./news.html", self.location.href).href))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
