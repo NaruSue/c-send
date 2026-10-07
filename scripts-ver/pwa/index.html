@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v2.4</title>
+<title>c-send PWA v2.5</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -119,7 +119,65 @@ button:active {
 }
 .help-trigger {
   cursor: pointer;
+  position: relative;
 }
+.help-trigger.update-available::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #d93025;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.input-clear-wrap {
+  position: relative;
+}
+.input-clear-wrap input {
+  padding-right: 48px;
+}
+.input-clear-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: #e6edf3;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 30px;
+}
+.input-clear-button[hidden] { display: none; }
+.reference-list {
+  display: grid;
+  gap: 8px;
+}
+.reference-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.reference-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+.reference-status {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.reference-row button { flex: 0 0 auto; }
 .install-trigger {
   width: 42px;
   height: 42px;
@@ -760,7 +818,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v2.4</h1>
+          <h1 class="title" id="appTitle">c-send PWA v2.5</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -825,6 +883,7 @@ button:active {
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuAddFile" type="button">ファイルから追加</button>
       <button class="menu-item" id="appMenuAddUrl" type="button">URLから追加</button>
+      <button class="menu-item" id="appMenuReferenceUrl" type="button">URLを参照</button>
       <div class="menu-divider" role="separator"></div>
       <button class="menu-item" id="appMenuBackup" type="button">バックアップ</button>
       <button class="menu-item" id="appMenuRestore" type="button">リストア</button>
@@ -872,6 +931,32 @@ button:active {
       <div class="modal-foot">
         <button id="libraryBack" type="button" hidden>戻る</button>
         <button id="libraryClose" type="button">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="urlBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="urlDialogTitle">
+      <div class="modal-head"><h2 id="urlDialogTitle">URLから追加</h2></div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="urlInput">共通JSONファイルのURL</label>
+          <div class="input-clear-wrap">
+            <input id="urlInput" type="url" inputmode="url" autocomplete="url" placeholder="https://" />
+            <button class="input-clear-button" id="urlInputClear" type="button" aria-label="URLを消去" hidden>×</button>
+          </div>
+        </div>
+        <p class="editor-hint" id="urlDialogStatus" role="status" aria-live="polite"></p>
+        <div class="field" id="referenceListField" hidden>
+          <label>参照中のURL</label>
+          <p class="editor-hint" id="referenceEmpty">URLはまだ登録されていません。下の欄から追加できます。</p>
+          <div class="reference-list" id="referenceList"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="urlDialogClose" type="button">閉じる</button>
+        <button id="urlReferenceAction" type="button" hidden>URLを参照</button>
+        <button class="primary" id="urlDialogSubmit" type="button">追加</button>
       </div>
     </div>
   </div>
@@ -969,7 +1054,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "2.4";
+  const APP_VERSION = "2.5";
   const APP_NAME = "c-send PWA";
   const LIBRARY_CATALOG_URL = "https://narusue.github.io/c-send-library/catalog.json";
   const DB_NAME = "c-send-pwa";
@@ -979,6 +1064,7 @@ button:active {
   const API_STORE_NAME = "apiDefinitions";
   const CREDENTIAL_STORE_NAME = "apiCredentials";
   const TAG_SEARCH_HISTORY_KEY = "c-send-pwa-tag-search-history";
+  const URL_SETTINGS_KEY = "urlSettings";
 
   const state = {
     items: [],
@@ -1001,7 +1087,11 @@ button:active {
     libraryCatalog: null,
     libraryCatalogUrl: "",
     libraryKind: "dataset",
-    libraryActiveTag: ""
+    libraryActiveTag: "",
+    latestAppVersion: "",
+    lastImportUrl: "",
+    referencedUrls: [],
+    urlDialogMode: "add"
   };
 
   const els = {
@@ -1022,10 +1112,22 @@ button:active {
     appMenuHelp: document.getElementById("appMenuHelp"),
     appMenuAddFile: document.getElementById("appMenuAddFile"),
     appMenuAddUrl: document.getElementById("appMenuAddUrl"),
+    appMenuReferenceUrl: document.getElementById("appMenuReferenceUrl"),
     appMenuBackup: document.getElementById("appMenuBackup"),
     appMenuRestore: document.getElementById("appMenuRestore"),
     appMenuApi: document.getElementById("appMenuApi"),
     appMenuCheckVersion: document.getElementById("appMenuCheckVersion"),
+    urlBackdrop: document.getElementById("urlBackdrop"),
+    urlDialogTitle: document.getElementById("urlDialogTitle"),
+    urlInput: document.getElementById("urlInput"),
+    urlInputClear: document.getElementById("urlInputClear"),
+    urlDialogStatus: document.getElementById("urlDialogStatus"),
+    urlDialogClose: document.getElementById("urlDialogClose"),
+    urlDialogSubmit: document.getElementById("urlDialogSubmit"),
+    urlReferenceAction: document.getElementById("urlReferenceAction"),
+    referenceListField: document.getElementById("referenceListField"),
+    referenceEmpty: document.getElementById("referenceEmpty"),
+    referenceList: document.getElementById("referenceList"),
     restoreFileInput: document.getElementById("restoreFileInput"),
     addFileInput: document.getElementById("addFileInput"),
     apiDefinitionFileInput: document.getElementById("apiDefinitionFileInput"),
@@ -1334,6 +1436,240 @@ button:active {
     els.libraryBackdrop.setAttribute("aria-hidden", "true");
   }
 
+  function openUrlDialog(mode) {
+    closeAppMenu();
+    state.urlDialogMode = mode;
+    els.urlDialogTitle.textContent = mode === "reference" ? "参照URLの管理" : "URLから追加";
+    els.urlInput.value = state.lastImportUrl;
+    els.urlDialogStatus.textContent = mode === "reference"
+      ? "URLを追加すると起動時に自動更新します。登録済みURLは一覧から削除できます。"
+      : "共通JSONファイルのURLを入力してください。";
+    els.urlReferenceAction.hidden = mode === "reference";
+    els.urlDialogSubmit.textContent = mode === "reference" ? "参照URLを追加" : "追加";
+    els.referenceListField.hidden = mode !== "reference";
+    updateUrlClearButton();
+    renderReferencedUrls();
+    els.urlBackdrop.classList.add("show");
+    els.urlBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  function closeUrlDialog() {
+    state.lastImportUrl = els.urlInput.value.trim();
+    saveUrlSettings().catch((err) => console.warn("URL settings save failed", err));
+    els.urlBackdrop.classList.remove("show");
+    els.urlBackdrop.setAttribute("aria-hidden", "true");
+  }
+
+  function updateUrlClearButton() {
+    els.urlInputClear.hidden = !els.urlInput.value;
+  }
+
+  function renderReferencedUrls() {
+    els.referenceList.replaceChildren();
+    els.referenceEmpty.hidden = state.referencedUrls.length > 0;
+    state.referencedUrls.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "reference-row";
+      const url = document.createElement("span");
+      url.className = "reference-url";
+      url.textContent = entry.url;
+      const status = document.createElement("span");
+      status.className = "reference-status";
+      status.textContent = entry.lastError
+        ? "取得失敗"
+        : (entry.lastCheckedAt ? `確認 ${new Date(entry.lastCheckedAt).toLocaleString()}` : "確認待ち");
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "削除";
+      remove.setAttribute("aria-label", `参照URLを削除: ${entry.url}`);
+      remove.addEventListener("click", () => removeReferencedUrl(entry.url));
+      row.append(url, status, remove);
+      els.referenceList.appendChild(row);
+    });
+  }
+
+  async function loadUrlSettings() {
+    const record = await new Promise((resolve, reject) => {
+      const request = state.db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(URL_SETTINGS_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    const value = record && record.value ? record.value : {};
+    state.lastImportUrl = typeof value.lastImportUrl === "string" ? value.lastImportUrl : "";
+    state.referencedUrls = Array.isArray(value.referencedUrls)
+      ? value.referencedUrls.filter((entry) => entry && typeof entry.url === "string")
+      : [];
+  }
+
+  async function saveUrlSettings() {
+    await new Promise((resolve, reject) => {
+      const tx = state.db.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).put({
+        key: URL_SETTINGS_KEY,
+        value: { lastImportUrl: state.lastImportUrl, referencedUrls: state.referencedUrls }
+      });
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("URL設定を保存できませんでした。"));
+    });
+  }
+
+  async function fetchCommonJson(url) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) throw new Error(`URLの読み込みに失敗しました: ${response.status}`);
+    const payload = validatePayload(await response.json());
+    if (!payload.items.length) throw new Error("追加できる項目がありません。");
+    return payload.items.map((item) => {
+      const normalized = normalizeItem(item);
+      delete normalized.referenceUrl;
+      normalized.sourceName = url;
+      return normalized;
+    });
+  }
+
+  function validateImportUrl(value, requireHttps) {
+    const parsed = new URL(String(value || "").trim());
+    if (parsed.protocol !== "https:" && (requireHttps || parsed.protocol !== "http:")) {
+      throw new Error(requireHttps ? "HTTPSのURLを指定してください。" : "http:// または https:// のURLを指定してください。");
+    }
+    return parsed.href;
+  }
+
+  async function addUrlItems() {
+    let url;
+    try {
+      url = validateImportUrl(els.urlInput.value, false);
+      state.lastImportUrl = url;
+      await saveUrlSettings();
+      const imported = await fetchCommonJson(url);
+      const result = mergeImportedItems(imported);
+      if (!await saveState()) throw new Error("データを保存できませんでした。");
+      render();
+      closeUrlDialog();
+      setStatus(`${result.added}件追加、${result.updated}件更新（全${state.items.length}件）`);
+      showCopyTip("URLから追加しました");
+    } catch (err) {
+      els.urlDialogStatus.textContent = err.message || "URLからの追加に失敗しました。CORS設定を確認してください。";
+    }
+  }
+
+  async function submitUrlDialog() {
+    if (els.urlDialogSubmit.disabled) return;
+    const originalText = state.urlDialogMode === "reference" ? "参照URLを追加" : "追加";
+    els.urlDialogSubmit.disabled = true;
+    els.urlDialogSubmit.textContent = "取得中…";
+    try {
+      if (state.urlDialogMode === "reference") await startUrlReference();
+      else await addUrlItems();
+    } finally {
+      els.urlDialogSubmit.disabled = false;
+      els.urlDialogSubmit.textContent = originalText;
+    }
+  }
+
+  async function startUrlReference() {
+    let url;
+    try {
+      url = validateImportUrl(els.urlInput.value, true);
+      if (state.referencedUrls.some((entry) => entry.url === url)) {
+        throw new Error("このURLはすでに参照中です。");
+      }
+      const imported = await fetchCommonJson(url);
+      const previousItems = state.items.map((item) => Object.assign({}, item));
+      const result = replaceReferencedItems(url, imported);
+      state.lastImportUrl = url;
+      state.referencedUrls.push({ url, lastCheckedAt: new Date().toISOString(), lastError: "" });
+      try {
+        if (!await saveState()) throw new Error("データを保存できませんでした。");
+        await saveUrlSettings();
+      } catch (err) {
+        state.items = previousItems;
+        state.referencedUrls = state.referencedUrls.filter((entry) => entry.url !== url);
+        await saveState();
+        throw err;
+      }
+      render();
+      renderReferencedUrls();
+      els.urlInput.value = "";
+      updateUrlClearButton();
+      els.urlDialogStatus.textContent = `${result.added}件追加、${result.updated}件更新しました。次回起動時から自動で確認します。`;
+    } catch (err) {
+      els.urlDialogStatus.textContent = err.message || "URLを参照できませんでした。CORS設定を確認してください。";
+    }
+  }
+
+  async function removeReferencedUrl(url) {
+    state.referencedUrls = state.referencedUrls.filter((entry) => entry.url !== url);
+    state.items.forEach((item) => {
+      if (item.referenceUrl === url) item.referenceUrl = undefined;
+    });
+    await saveState();
+    await saveUrlSettings();
+    renderReferencedUrls();
+  }
+
+  async function refreshReferencedUrls() {
+    for (const entry of [...state.referencedUrls]) {
+      try {
+        entry.lastError = "";
+        const imported = await fetchCommonJson(entry.url);
+        const before = state.items.map((item) => Object.assign({}, item));
+        const result = replaceReferencedItems(entry.url, imported);
+        entry.lastCheckedAt = new Date().toISOString();
+        try {
+          if (!await saveState()) throw new Error("データを保存できませんでした。");
+          await saveUrlSettings();
+          renderReferencedUrls();
+          if (result.added || result.updated || result.removed) {
+            render();
+            setStatus(`参照URLを更新しました（${result.added}件追加、${result.updated}件更新、${result.removed}件削除）`);
+          }
+        } catch (err) {
+          state.items = before;
+          throw err;
+        }
+      } catch (err) {
+        entry.lastError = err.message || "取得に失敗しました";
+        await saveUrlSettings().catch((saveError) => console.warn("URL settings save failed", saveError));
+        renderReferencedUrls();
+        console.warn(`referenced URL refresh failed: ${entry.url}`, err);
+      }
+    }
+  }
+
+  function replaceReferencedItems(url, imported) {
+    const previous = state.items.filter((item) => item.referenceUrl === url);
+    state.items = state.items.filter((item) => item.referenceUrl !== url);
+    const uniqueImported = [];
+    imported.forEach((incoming) => {
+      const duplicate = uniqueImported.find((item) => item.name === incoming.name && item.value === incoming.value);
+      if (!duplicate) {
+        uniqueImported.push(incoming);
+        return;
+      }
+      incoming.tags.forEach((tag) => {
+        if (!duplicate.tags.includes(tag)) duplicate.tags.push(tag);
+      });
+    });
+    const next = uniqueImported.map((incoming) => {
+      const sameItem = previous.find((item) => item.name === incoming.name && item.value === incoming.value);
+      const sameUniqueName = previous.filter((item) => item.name === incoming.name);
+      const match = sameItem || (sameUniqueName.length === 1 ? sameUniqueName[0] : null);
+      return normalizeItem(Object.assign({}, incoming, {
+        referenceUrl: url,
+        usageCount: match ? match.usageCount : incoming.usageCount,
+        lastUsedAt: match ? match.lastUsedAt : incoming.lastUsedAt
+      }));
+    });
+    state.items.push(...next);
+    const previousKeys = new Set(previous.map((item) => `${item.name}\u0000${item.value}`));
+    return {
+      added: next.filter((item) => !previousKeys.has(`${item.name}\u0000${item.value}`)).length,
+      updated: next.filter((item) => previousKeys.has(`${item.name}\u0000${item.value}`)).length,
+      removed: previous.filter((oldItem) => !next.some((item) => item.name === oldItem.name && item.value === oldItem.value)).length
+    };
+  }
+
   async function installLibraryEntry(entry) {
     try {
       const url = libraryEntryUrl(entry);
@@ -1356,6 +1692,7 @@ button:active {
       if (missing.length && !confirm(`依存API（${missing.join(", ")}）が未登録です。このままデータセットを追加しますか？`)) return;
       const imported = payload.items.map((item) => {
         const normalized = normalizeItem(item);
+        delete normalized.referenceUrl;
         normalized.sourceName = url;
         return normalized;
       });
@@ -1503,6 +1840,7 @@ button:active {
       mode,
       options: item && item.options && typeof item.options === "object" ? item.options : undefined,
       sourceName: item && item.sourceName ? String(item.sourceName) : undefined,
+      referenceUrl: item && item.referenceUrl ? String(item.referenceUrl) : undefined,
       apiState: ["idle", "running", "completed", "failed", "unavailable"].includes(item && item.apiState)
         ? item.apiState : "idle",
       apiError: String(item && item.apiError ? item.apiError : ""),
@@ -1516,6 +1854,7 @@ button:active {
     let added = 0;
     let updated = 0;
     imported.forEach((incoming) => {
+      delete incoming.referenceUrl;
       const matches = [];
       state.items.forEach((current, index) => {
         if (current.name === incoming.name && current.value === incoming.value) {
@@ -1823,7 +2162,10 @@ button:active {
       format: "c-send-pwa-backup",
       version: 1,
       createdAt: new Date().toISOString(),
-      items: state.items
+      items: state.items.map((item) => {
+        const { referenceUrl, ...backupItem } = item;
+        return backupItem;
+      })
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1863,7 +2205,11 @@ button:active {
       if (!confirm(`${payload.items.length}件のデータで現在のデータを置き換えますか？`)) return;
 
       const previousItems = state.items;
-      state.items = payload.items.map(normalizeItem);
+      state.items = payload.items.map((item) => {
+        const normalized = normalizeItem(item);
+        delete normalized.referenceUrl;
+        return normalized;
+      });
       const saved = await saveState();
       if (!saved) {
         state.items = previousItems;
@@ -1903,6 +2249,7 @@ button:active {
         const payload = validatePayload(JSON.parse(await file.text()));
         payload.items.forEach((item) => {
           const normalized = normalizeItem(item);
+          delete normalized.referenceUrl;
           normalized.sourceName = file.name;
           imported.push(normalized);
         });
@@ -1920,44 +2267,6 @@ button:active {
       alert(err.message || "ファイルの追加に失敗しました。");
     } finally {
       els.addFileInput.value = "";
-    }
-  }
-
-  async function addFromUrl() {
-    closeAppMenu();
-    const url = window.prompt("共通JSONファイルのURLを入力してください。", "https://raw.githubusercontent.com/");
-    if (!url || !url.trim()) return;
-    let parsedUrl;
-    try {
-      parsedUrl = new URL(url.trim());
-      if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
-        throw new Error("http:// または https:// のURLを指定してください。");
-      }
-    } catch (err) {
-      setStatus(err.message || "URLが正しくありません。", true);
-      alert(err.message || "URLが正しくありません。");
-      return;
-    }
-    try {
-      const response = await fetch(parsedUrl.href, { cache: "no-store" });
-      if (!response.ok) throw new Error(`URLの読み込みに失敗しました: ${response.status}`);
-      const payload = validatePayload(await response.json());
-      const imported = payload.items.map((item) => {
-        const normalized = normalizeItem(item);
-        normalized.sourceName = parsedUrl.href;
-        return normalized;
-      });
-      if (!imported.length) throw new Error("追加できる項目がありません。");
-      const result = mergeImportedItems(imported);
-      const saved = await saveState();
-      if (!saved) throw new Error("データを保存できませんでした。");
-      render();
-      setStatus(`${result.added}件追加、${result.updated}件更新（全${state.items.length}件）`);
-      showCopyTip("URLから追加しました");
-    } catch (err) {
-      console.error(err);
-      setStatus(err.message || "URLからの追加に失敗しました。", true);
-      alert(err.message || "URLからの追加に失敗しました。CORS設定を確認してください。");
     }
   }
 
@@ -2341,6 +2650,8 @@ button:active {
       alert("タイトルまたは本文を入力してください。");
       return;
     }
+
+    const editBaseline = state.editingIndex >= 0 ? state.items[state.editingIndex] : null;
     const options = mode === "api" ? { api: els.itemApi.value, action: els.itemAction.value } : undefined;
     if (mode === "api" && (!options.api || !options.action)) {
       alert("APIとActionを選択してください。API設定が未登録の場合は先にAPI設定を追加してください。");
@@ -2359,6 +2670,7 @@ button:active {
         mode,
         options,
         sourceName: previous.sourceName,
+        referenceUrl: previous.referenceUrl,
         usageCount: previous.usageCount,
         lastUsedAt: previous.lastUsedAt
       });
@@ -2833,21 +3145,47 @@ button:active {
     return 0;
   }
 
+  function setUpdateAvailable(version) {
+    state.latestAppVersion = version || "";
+    const available = Boolean(version) && compareVersions(version, APP_VERSION) > 0;
+    els.helpTrigger.classList.toggle("update-available", available);
+    els.helpTrigger.setAttribute("aria-label", available
+      ? `c-sendメニューを開く（v${version}に更新できます）`
+      : "c-sendメニューを開く");
+    els.appMenuCheckVersion.textContent = available
+      ? `バージョンチェック（v${version}に更新できます）`
+      : "バージョンチェック";
+    return available;
+  }
+
+  async function fetchLatestVersion() {
+    const currentUrl = new URL(window.location.href);
+    currentUrl.search = `?versionCheck=${Date.now()}`;
+    currentUrl.hash = "";
+    const response = await fetch(currentUrl.href, { cache: "no-store" });
+    if (!response.ok) throw new Error(`最新版の確認に失敗しました: ${response.status}`);
+    const html = await response.text();
+    const match = html.match(/const\s+APP_VERSION\s*=\s*["']([^"']+)["']/);
+    if (!match) throw new Error("最新版のバージョン情報を取得できませんでした。");
+    return { version: match[1], url: currentUrl };
+  }
+
+  async function checkLatestVersionOnStartup() {
+    try {
+      const latest = await fetchLatestVersion();
+      setUpdateAvailable(latest.version);
+    } catch (err) {
+      console.warn("startup version check failed", err);
+    }
+  }
+
   async function checkVersion() {
     closeAppMenu();
     try {
       setStatus("最新版を確認しています…");
-      const currentUrl = new URL(window.location.href);
-      currentUrl.search = `?versionCheck=${Date.now()}`;
-      currentUrl.hash = "";
-      const response = await fetch(currentUrl.href, { cache: "no-store" });
-      if (!response.ok) throw new Error(`最新版の確認に失敗しました: ${response.status}`);
-      const html = await response.text();
-      const match = html.match(/const\s+APP_VERSION\s*=\s*["']([^"']+)["']/);
-      if (!match) throw new Error("最新版のバージョン情報を取得できませんでした。");
-
-      const latestVersion = match[1];
+      const { version: latestVersion, url: currentUrl } = await fetchLatestVersion();
       if (compareVersions(latestVersion, APP_VERSION) <= 0) {
+        setUpdateAvailable("");
         setStatus(`最新版です（v${APP_VERSION}）`);
         showCopyTip(`最新版です（v${APP_VERSION}）`);
         return;
@@ -2888,7 +3226,20 @@ button:active {
       openHelpPopover();
     });
     els.appMenuAddFile.addEventListener("click", chooseAddFile);
-    els.appMenuAddUrl.addEventListener("click", addFromUrl);
+    els.appMenuAddUrl.addEventListener("click", () => openUrlDialog("add"));
+    els.appMenuReferenceUrl.addEventListener("click", () => openUrlDialog("reference"));
+    els.urlDialogClose.addEventListener("click", closeUrlDialog);
+    els.urlDialogSubmit.addEventListener("click", submitUrlDialog);
+    els.urlReferenceAction.addEventListener("click", () => openUrlDialog("reference"));
+    els.urlInput.addEventListener("input", updateUrlClearButton);
+    els.urlInputClear.addEventListener("click", () => {
+      els.urlInput.value = "";
+      updateUrlClearButton();
+      els.urlInput.focus();
+    });
+    els.urlBackdrop.addEventListener("click", (ev) => {
+      if (ev.target === els.urlBackdrop) closeUrlDialog();
+    });
     els.appMenuBackup.addEventListener("click", backupState);
     els.appMenuRestore.addEventListener("click", chooseRestoreFile);
     els.appMenuApi.addEventListener("click", openApiSettings);
@@ -2999,6 +3350,7 @@ button:active {
         closeApiSettings();
         closeApiResult();
         closeLibrary();
+        closeUrlDialog();
       }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "n") {
         ev.preventDefault();
@@ -3020,6 +3372,7 @@ button:active {
     updateInstallVisibility();
     bindEvents();
     registerServiceWorker();
+    checkLatestVersionOnStartup();
     try {
       const savedTagHistory = JSON.parse(localStorage.getItem(TAG_SEARCH_HISTORY_KEY) || "[]");
       if (Array.isArray(savedTagHistory)) state.tagSearchHistory = savedTagHistory.filter((tag) => typeof tag === "string");
@@ -3028,8 +3381,10 @@ button:active {
     }
     try {
       await loadState();
+      await loadUrlSettings();
       render();
       setStatus(state.items.length + "件");
+      refreshReferencedUrls();
     } catch (err) {
       console.error(err);
       try {
