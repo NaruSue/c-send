@@ -28,6 +28,11 @@
   </header>
   <main data-news-content>
     <article>
+      <h2>参照URLの更新確認を効率化</h2>
+      <p class="release-meta">v2.10 ・ 2026年10月8日</p>
+      <p>参照URLの確認時にまずHEADでETagを調べ、前回と同じ場合はJSON本文を取得せず最新として扱います。ETagを利用できない配布元では従来のGET方式にフォールバックします。</p>
+    </article>
+    <article>
       <h2>参照URLを手動・定期更新</h2>
       <p class="release-meta">v2.9 ・ 2026年10月8日</p>
       <p>「URLを参照」の一覧からURLごとに更新できるようになりました。「すべて更新」では登録済みURLをまとめて再取得します。アプリ起動中は約10分ごとに参照URLとリリース情報を確認し、画面に戻った時も前回確認から時間が経っていれば再確認します。</p>

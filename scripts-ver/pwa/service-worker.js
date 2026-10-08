@@ -1,4 +1,4 @@
-const CACHE_NAME = "c-send-pwa-v2.9";
+const CACHE_NAME = "c-send-pwa-v2.10";
 const ASSETS = [
   "./",
   "./index.html",
@@ -46,6 +46,7 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
+  if (event.request.cache === "no-store") return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

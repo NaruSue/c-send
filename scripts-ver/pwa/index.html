@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="c-send.ico" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<title>c-send PWA v2.9</title>
+<title>c-send PWA v2.10</title>
 <style>
 :root {
   --bg: #eef3f7;
@@ -868,7 +868,7 @@ button:active {
           <img src="apple-touch-icon.png" alt="" />
         </button>
         <div class="title-block">
-          <h1 class="title" id="appTitle">c-send PWA v2.9</h1>
+          <h1 class="title" id="appTitle">c-send PWA v2.10</h1>
         </div>
         <div class="header-actions">
           <button class="install-trigger" id="installTrigger" type="button" aria-label="PWAをホーム画面に追加する方法">
@@ -1116,7 +1116,7 @@ button:active {
 
 <script>
 (() => {
-  const APP_VERSION = "2.9";
+  const APP_VERSION = "2.10";
   const APP_NAME = "c-send PWA";
   const LIBRARY_CATALOG_URL = "https://narusue.github.io/c-send-library/catalog.json";
   const DB_NAME = "c-send-pwa";
@@ -1641,8 +1641,8 @@ button:active {
       const status = document.createElement("span");
       status.className = "reference-status";
       status.textContent = entry.lastError
-        ? `取得失敗（最終更新 ${entry.lastCheckedAt ? new Date(entry.lastCheckedAt).toLocaleString() : "なし"}）`
-        : (entry.lastCheckedAt ? `更新 ${new Date(entry.lastCheckedAt).toLocaleString()}` : "更新待ち");
+        ? `取得失敗（最終確認 ${entry.lastCheckedAt ? new Date(entry.lastCheckedAt).toLocaleString() : "なし"}）`
+        : (entry.lastCheckedAt ? `${entry.lastCheckResult === "latest" ? "最新" : "確認"} ${new Date(entry.lastCheckedAt).toLocaleString()}` : "確認待ち");
       const meta = document.createElement("div");
       meta.className = "reference-meta";
       const count = document.createElement("span");
@@ -1697,7 +1697,9 @@ button:active {
     const value = record && record.value ? record.value : {};
     state.lastImportUrl = typeof value.lastImportUrl === "string" ? value.lastImportUrl : "";
     state.referencedUrls = Array.isArray(value.referencedUrls)
-      ? value.referencedUrls.filter((entry) => entry && typeof entry.url === "string")
+      ? value.referencedUrls
+          .filter((entry) => entry && typeof entry.url === "string")
+          .map((entry) => Object.assign({}, entry, { etag: typeof entry.etag === "string" ? entry.etag : "" }))
       : [];
   }
 
@@ -1725,6 +1727,33 @@ button:active {
       normalized.sourceName = url;
       return normalized;
     });
+  }
+
+  async function fetchReferencedJson(url, savedEtag = "") {
+    const requestOptions = { mode: "cors", credentials: "omit", cache: "no-store" };
+    let headEtag = "";
+    try {
+      const headResponse = await fetch(url, Object.assign({ method: "HEAD" }, requestOptions));
+      if (headResponse.ok) headEtag = (headResponse.headers.get("ETag") || "").trim();
+    } catch (err) {
+      console.info("reference HEAD check unavailable; falling back to GET", err);
+    }
+
+    if (headEtag && savedEtag && headEtag === savedEtag) {
+      return { unchanged: true, etag: headEtag, items: [] };
+    }
+
+    const response = await fetch(url, Object.assign({ method: "GET" }, requestOptions));
+    if (!response.ok) throw new Error(`URLの読み込みに失敗しました: ${response.status}`);
+    const payload = validatePayload(await response.json());
+    if (!payload.items.length) throw new Error("追加できる項目がありません。");
+    const items = payload.items.map((item) => {
+      const normalized = normalizeItem(item);
+      delete normalized.referenceUrl;
+      normalized.sourceName = url;
+      return normalized;
+    });
+    return { unchanged: false, etag: (response.headers.get("ETag") || "").trim(), items };
   }
 
   function validateImportUrl(value, requireHttps) {
@@ -1774,11 +1803,11 @@ button:active {
       if (state.referencedUrls.some((entry) => entry.url === url)) {
         throw new Error("このURLはすでに参照中です。");
       }
-      const imported = await fetchCommonJson(url);
+      const fetched = await fetchReferencedJson(url);
       const previousItems = state.items.map((item) => Object.assign({}, item));
-      const result = replaceReferencedItems(url, imported);
+      const result = replaceReferencedItems(url, fetched.items);
       state.lastImportUrl = url;
-      state.referencedUrls.push({ url, lastCheckedAt: new Date().toISOString(), lastError: "" });
+      state.referencedUrls.push({ url, etag: fetched.etag, lastCheckedAt: new Date().toISOString(), lastCheckResult: "updated", lastError: "" });
       try {
         if (!await saveState()) throw new Error("データを保存できませんでした。");
         await saveUrlSettings();
@@ -1820,11 +1849,27 @@ button:active {
     try {
       for (const entry of entries) {
         try {
-          const imported = await fetchCommonJson(entry.url);
+          const fetched = await fetchReferencedJson(entry.url, entry.etag);
+          if (fetched.unchanged) {
+            const previousEntry = Object.assign({}, entry);
+            entry.lastCheckedAt = new Date().toISOString();
+            entry.lastCheckResult = "latest";
+            entry.lastError = "";
+            try {
+              await saveUrlSettings();
+            } catch (err) {
+              Object.assign(entry, previousEntry);
+              throw err;
+            }
+            renderReferencedUrls();
+            continue;
+          }
           const before = state.items.map((item) => Object.assign({}, item));
           const previousEntry = Object.assign({}, entry);
-          const result = replaceReferencedItems(entry.url, imported);
+          const result = replaceReferencedItems(entry.url, fetched.items);
+          entry.etag = fetched.etag;
           entry.lastCheckedAt = new Date().toISOString();
+          entry.lastCheckResult = result.added || result.updated || result.removed ? "updated" : "latest";
           entry.lastError = "";
           try {
             if (!await saveState()) throw new Error("データを保存できませんでした。");
@@ -1837,6 +1882,7 @@ button:active {
           } catch (err) {
             state.items = before;
             Object.assign(entry, previousEntry);
+            await saveState().catch((rollbackError) => console.warn("reference data rollback failed", rollbackError));
             throw err;
           }
         } catch (err) {
