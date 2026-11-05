@@ -13,7 +13,7 @@
 
 ## バージョン管理
 
-version.h をバージョン管理の正本とする。
+ネイティブ版は version.h をバージョン管理の正本とする。PWAの別手順は本書末尾を参照する。
 
 例:
 
@@ -98,3 +98,15 @@ c-send-1.5.0.zip
 - changelog自動生成
 - Release Notes自動生成
 - バージョン整合性チェック
+
+## PWA静的リリースの別手順（2026-11-05）
+
+上記の `version.h` とWindowsビルドの手順はネイティブ版用。PWAの版の正本は `web/pwa/version.js`（現行0.1.85）。Pagesと互換URLの公開元も `web/pwa/` とし、`scripts-ver/pwa/` は旧版・参照用に限定する。
+
+1. 実装・音源・参照URLとService Workerの事前保存URLをそろえ、必要な回帰テストを行う。
+2. `web/deploy-pwa-static.ps1 -SshTarget c-send-org-deploy` で静的PWAだけを配信する。旧版は `/home/web/.c-send-pwa-backups/` に退避される。
+3. 本番のホームHTML、version.js、Service Worker、変更スクリプト・音源についてHTTP応答とローカル成果物の一致を検証する。CDNキャッシュが残る音源等には新しい版付きURLを使う。
+4. ホーム用キャッシュとゲームiframe用キャッシュが混同されず、オフライン再起動・通常画面への復帰ができることを確認する。
+5. 隠し機能の変更は内部文書だけに記録し、ニュースに掲載しない。
+
+**実装済み:** [診断ログの版別初期化](pwa-next-update.md)。診断以外の端末データを消さない。

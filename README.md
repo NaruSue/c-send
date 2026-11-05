@@ -99,12 +99,15 @@ API key、token、ID、PASSをJSON、カテゴリファイル、Git、チャッ�
 
 ## 提供形態
 
-このREADMEはWindowsネイティブ版（`csend.exe`）の説明です。
+このREADMEは主にWindowsネイティブ版（`csend.exe`）の説明です。Web/PWAサービスは公式ポータル内にテンプレート管理機能を備え、PWAと同じc-sendアカウント・プロフィールを使います。PWAのテンプレートは端末内に保存し、必要な項目だけアカウントへ同期・バックアップできます。
 
+- [c-send公式サイト](https://loose.bz/c-send/): Webアプリ・共通アカウント・テンプレート管理の案内
+- [c-send PWA](https://narusue.github.io/c-send.pwa/): ブラウザー・ホーム画面から使うテンプレートアプリ（正式公開版）
+- [テンプレート管理](https://loose.bz/c-send/t/): ポータル内でテンプレートを検索・作成・管理・公開
 - [HTA版](scripts-ver/hta/readme.md): 外部バイナリを導入できないWindows環境向け
 - [PWA版](scripts-ver/pwa/readme.md): iPhone / iPadOS / Android向け
 
-API通信機能はネイティブ版の機能です。
+API通信機能はネイティブ版の機能です。PWAのログインやアカウント保存はWeb側のAPIを使用します。
 
 ## ビルド
 
@@ -122,3 +125,14 @@ API機能は外部サービスへ接続せずモックテストできます。�
 ## ライセンス
 
 このプロジェクトは [LICENSE](LICENSE) の条件に従って利用できます。
+
+## 共通JSON形式
+
+独自の互換アプリ向けを含む [共通JSONデータ形式仕様](docs/data-file-spec.md) を公開しています。形式1.1.0は、整数で分けたバージョン番号、ファイル全体と項目ごとの任意の `option`、作成者・変更前本文・差分を含む履歴、履歴なし出力を定義します。各アプリでの対応状況とは別の仕様定義です。
+
+## Web/PWAの開発・保守資料（2026-11-05）
+
+現行PWAの実装とGitHub Pages公開元は `web/pwa/`、正式公開版は [GitHub Pages版](https://narusue.github.io/c-send.pwa/) です。`https://loose.bz/c-send/pwa/` は現行PWAの互換URLとして維持しています。配信版は0.1.85、`scripts-ver/pwa/` は旧版・参考資料であり、現行PWAの公開元ではありません。
+開発資料は [ドキュメント案内](docs/README.md)、配信状況は [Web運用資料](web/OPERATIONS.md) を参照してください。
+PWAは `web/pwa/version.js`、Windows版は `version.h` で別々に版を管理します。
+実装済みの診断ログ初期化と今後の項目は [PWA次回更新項目](docs/pwa-next-update.md) に記録しています。
