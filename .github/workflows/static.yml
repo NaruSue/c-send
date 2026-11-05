@@ -33,11 +33,10 @@ jobs:
         shell: bash
         run: |
           set -eu
-          version="$(sed -n 's/^[[:space:]]*const APP_VERSION = "\(.*\)";/\1/p' scripts-ver/pwa/index.html)"
+          version="$(sed -n 's/^[[:space:]]*self\.CSEND_WEB_VERSION = "\(.*\)";/\1/p' web/pwa/version.js)"
           test -n "$version"
           rm -rf _site
-          cp -R scripts-ver/pwa _site
-          sed -i "s/__PWA_VERSION__/$version/g" _site/service-worker.js
+          cp -R web/pwa _site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
